@@ -91,7 +91,7 @@ static GCPadStatus GCPadStatusFromPyDict(PyObject* dict) {
   u8 analog_b = py_analog_b == nullptr ? 0 : PyLong_AsUnsignedLong(py_analog_b);
 
   PyObject* py_connected = PyDict_GetItemString(dict, "Connected");
-  bool connected = py_connected != nullptr && PyObject_IsTrue(py_connected);
+  bool connected = py_connected == nullptr || PyObject_IsTrue(py_connected);
 
   GCPadStatus status;
   status.button = (button_left ? PAD_BUTTON_LEFT : 0) | (button_right ? PAD_BUTTON_RIGHT : 0) |
