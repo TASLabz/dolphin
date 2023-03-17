@@ -92,6 +92,8 @@ void GeneralWidget::CreateWidgets()
       new GraphicsBool(tr("Log Render Time to File"), Config::GFX_LOG_RENDER_TIME_TO_FILE);
   m_autoadjust_window_size =
       new GraphicsBool(tr("Auto-Adjust Window Size"), Config::MAIN_RENDER_WINDOW_AUTOSIZE);
+  m_lock_window_to_right =
+      new GraphicsBool(tr("Lock Window to Right"), Config::MAIN_RENDER_WINDOW_LOCK_RIGHT);
   m_show_messages =
       new GraphicsBool(tr("Show NetPlay Messages"), Config::GFX_SHOW_NETPLAY_MESSAGES);
   m_render_main_window = new GraphicsBool(tr("Render to Main Window"), Config::MAIN_RENDER_TO_MAIN);
@@ -104,8 +106,10 @@ void GeneralWidget::CreateWidgets()
   m_options_layout->addWidget(m_render_main_window, 1, 0);
   m_options_layout->addWidget(m_autoadjust_window_size, 1, 1);
 
-  m_options_layout->addWidget(m_show_messages, 2, 0);
-  m_options_layout->addWidget(m_show_ping, 2, 1);
+  m_options_layout->addWidget(m_lock_window_to_right, 2, 0);
+  m_options_layout->addWidget(m_show_messages, 2, 1);
+
+  m_options_layout->addWidget(m_show_ping, 3, 0);
 
   // Other
   auto* shader_compilation_box = new QGroupBox(tr("Shader Compilation"));

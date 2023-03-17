@@ -167,6 +167,7 @@ extern const Info<int> MAIN_RENDER_WINDOW_YPOS;
 extern const Info<int> MAIN_RENDER_WINDOW_WIDTH;
 extern const Info<int> MAIN_RENDER_WINDOW_HEIGHT;
 extern const Info<bool> MAIN_RENDER_WINDOW_AUTOSIZE;
+extern const Info<bool> MAIN_RENDER_WINDOW_LOCK_RIGHT;
 extern const Info<bool> MAIN_KEEP_WINDOW_ON_TOP;
 extern const Info<bool> MAIN_DISABLE_SCREENSAVER;
 

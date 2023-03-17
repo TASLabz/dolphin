@@ -231,6 +231,8 @@ const Info<int> MAIN_RENDER_WINDOW_WIDTH{{System::Main, "Display", "RenderWindow
 const Info<int> MAIN_RENDER_WINDOW_HEIGHT{{System::Main, "Display", "RenderWindowHeight"}, 480};
 const Info<bool> MAIN_RENDER_WINDOW_AUTOSIZE{{System::Main, "Display", "RenderWindowAutoSize"},
                                              false};
+const Info<bool> MAIN_RENDER_WINDOW_LOCK_RIGHT{{System::Main, "Display", "RenderWindowLockRight"},
+                                             true};
 const Info<bool> MAIN_KEEP_WINDOW_ON_TOP{{System::Main, "Display", "KeepWindowOnTop"}, false};
 const Info<bool> MAIN_DISABLE_SCREENSAVER{{System::Main, "Display", "DisableScreenSaver"}, true};
 
