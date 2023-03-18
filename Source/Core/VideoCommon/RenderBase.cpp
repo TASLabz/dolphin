@@ -1121,6 +1121,11 @@ void Renderer::BeginImGuiFrame()
       ImVec2(static_cast<float>(m_backbuffer_width), static_cast<float>(m_backbuffer_height));
   io.DeltaTime = time_diff_secs;
 
+  std::string ttfPath = File::GetUserPath(D_LOAD_IDX) + "scriptFont.ttf";
+  API::font = io.Fonts->AddFontFromFileTTF(ttfPath.c_str(), 15.0f);
+  io.Fonts->Build();
+  IM_ASSERT(API::font != NULL);
+
   ImGui::NewFrame();
 }
 

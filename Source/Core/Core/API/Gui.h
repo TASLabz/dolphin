@@ -10,12 +10,13 @@
 #include <functional>
 
 #include "Common/CommonTypes.h"
+#include "Common/FileUtil.h"
 
 using Vec2f = ImVec2;
 
 namespace API
 {
-
+ImFont* font;
 class Gui
 {
 public:

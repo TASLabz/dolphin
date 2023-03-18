@@ -31,6 +31,7 @@ void Gui::Render()
   std::vector<std::function<void(ImDrawList*)>> draw_calls;
   std::swap(draw_calls, m_draw_calls);
 
+
   ImGui::SetNextWindowPos(ImVec2{0, 0});
   ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
   static auto flags =
@@ -96,7 +97,9 @@ void Gui::DrawCircleFilled(const Vec2f center, float radius, u32 color, int num_
 
 void Gui::DrawText(const Vec2f pos, u32 color, std::string text)
 {
+  ImGui::PushFont(API::font);
   GUI_DRAW_DEFERRED(AddText(pos, ARGBToABGR(color), text.c_str()));
+  ImGui::PopFont();
 }
 
 void Gui::DrawPolyline(const std::vector<Vec2f> points, u32 color, bool closed, float thickness)
