@@ -44,11 +44,13 @@ struct ClearInterrupt
 };
 struct SaveStateSave
 {
+  SaveStateSave(bool toSlot, int slot) { this->toSlot = toSlot; this->slot = slot; }
   bool toSlot;
   int slot;
 };
 struct SaveStateLoad
 {
+  SaveStateLoad(bool fromSlot, int slot) { this->fromSlot = fromSlot; this->slot = slot; }
   bool fromSlot;
   int slot;
 };
