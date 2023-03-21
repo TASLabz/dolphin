@@ -65,22 +65,7 @@ static PyThreadState* InitMainPythonInterpreter()
   PyConfig config;
   PyConfig_InitPythonConfig(&config);
 
-  // wchar_t* path = const_cast<wchar_t*>(std::wstring(scriptPath.begin(), scriptPath.end()).c_str());
-
   PyConfig_SetString(&config, &config.pythonpath_env, std::wstring(scriptPath.begin(), scriptPath.end()).c_str());
-
-  PyWideStringList_Append(&config.module_search_paths, std::wstring(scriptPath.begin(), scriptPath.end()).c_str());
-  config.module_search_paths_set = 0;
-// 
-  INFO_LOG_FMT(SCRIPTING, "{}", scriptPath);
-// 
-  // for (size_t i = 0; i < config.module_search_paths.length; i++) {
-  		  // wchar_t* wcpath = config.module_search_paths.items[i];
-  		  // size_t len = std::wcslen(wcpath);
-  		  // char* path = new char[len+1];
-  		  // wcstombs(path, wcpath, len + 1);
-          // INFO_LOG_FMT(SCRIPTING, "Path: {}", std::string_view(path));
-  // }
   
   Py_InitializeFromConfig(&config);
 
