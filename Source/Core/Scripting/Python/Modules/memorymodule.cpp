@@ -106,6 +106,7 @@ PyMODINIT_FUNC PyInit_memory()
       {"read_f32", Read<API::Memory::Read_F32>, METH_VARARGS, ""},
       {"read_f64", Read<API::Memory::Read_F64>, METH_VARARGS, ""},
 
+      {"invalidate_icache", Write<API::Memory::InvalidateICache, u32>, METH_VARARGS, ""},
       {"write_u8", Write<API::Memory::Write_U8, u8>, METH_VARARGS, ""},
       {"write_u16", Write<API::Memory::Write_U16, u16>, METH_VARARGS, ""},
       {"write_u32", Write<API::Memory::Write_U32, u32>, METH_VARARGS, ""},

@@ -6,6 +6,7 @@
 
 #include "Common/CommonTypes.h"
 #include "Core/HW/Memmap.h"
+#include "Core/PowerPC/JitInterface.h"
 
 namespace API::Memory
 {
@@ -68,6 +69,11 @@ inline double Read_F64(u32 addr)
 }
 
 // memory writing: arguments of write functions are swapped (address first) to be consistent with other scripting APIs
+
+inline void InvalidateICache(u32 addr, u32 size)
+{
+  JitInterface::InvalidateICache(addr, size, true);
+}
 
 inline void Write_U8(u32 addr, u8 val)
 {
