@@ -560,13 +560,13 @@ static void LoadFileStateData(const std::string& filename, std::vector<u8>& ret_
 void LoadFile(const std::string& filename)
 {
   LoadAs(filename);
-  API::GetEventHub().EmitEvent(API::Events::SaveStateLoad(false, -1));
+  API::GetEventHub().EmitEvent(API::Events::SaveStateLoad{false, -1});
 }
 
 void SaveFile(const std::string& filename, bool wait)
 {
   SaveAs(filename, wait);
-  API::GetEventHub().EmitEvent(API::Events::SaveStateSave(false, -1));
+  API::GetEventHub().EmitEvent(API::Events::SaveStateSave{false, -1});
 }
 
 void LoadAs(const std::string& filename)
@@ -679,13 +679,13 @@ static std::string MakeStateFilename(int number)
 void Save(int slot, bool wait)
 {
   SaveAs(MakeStateFilename(slot), wait);
-  API::GetEventHub().EmitEvent(API::Events::SaveStateSave(true, slot));
+  API::GetEventHub().EmitEvent(API::Events::SaveStateSave{true, slot});
 }
 
 void Load(int slot)
 {
   LoadAs(MakeStateFilename(slot));
-  API::GetEventHub().EmitEvent(API::Events::SaveStateLoad(true, slot));
+  API::GetEventHub().EmitEvent(API::Events::SaveStateLoad{true, slot});
 }
 
 void LoadLastSaved(int i)
