@@ -61,7 +61,28 @@ static PyThreadState* InitMainPythonInterpreter()
   Py_SetPath(python_path.c_str());
 #endif
   INFO_LOG_FMT(SCRIPTING, "Initializing embedded python... {}", Py_GetVersion());
-  Py_InitializeEx(0);
+  std::string scriptPath = File::GetUserPath(D_LOAD_IDX) + "Scripts";
+  PyConfig config;
+  PyConfig_InitPythonConfig(&config);
+
+  // wchar_t* path = const_cast<wchar_t*>(std::wstring(scriptPath.begin(), scriptPath.end()).c_str());
+
+  PyConfig_SetString(&config, &config.pythonpath_env, std::wstring(scriptPath.begin(), scriptPath.end()).c_str());
+
+  PyWideStringList_Append(&config.module_search_paths, std::wstring(scriptPath.begin(), scriptPath.end()).c_str());
+  config.module_search_paths_set = 0;
+// 
+  INFO_LOG_FMT(SCRIPTING, "{}", scriptPath);
+// 
+  // for (size_t i = 0; i < config.module_search_paths.length; i++) {
+  		  // wchar_t* wcpath = config.module_search_paths.items[i];
+  		  // size_t len = std::wcslen(wcpath);
+  		  // char* path = new char[len+1];
+  		  // wcstombs(path, wcpath, len + 1);
+          // INFO_LOG_FMT(SCRIPTING, "Path: {}", std::string_view(path));
+  // }
+  
+  Py_InitializeFromConfig(&config);
 
   // Starting with Python 3.7 Py_Initialize* also initializes the GIL in a locked state.
   // This might be the same issue: https://bugs.python.org/issue38680
