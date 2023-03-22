@@ -69,6 +69,7 @@ static void CreateLoadPath(std::string path)
     File::SetUserPath(D_LOAD_IDX, std::move(path));
   File::CreateFullPath(File::GetUserPath(D_HIRESTEXTURES_IDX));
   File::CreateFullPath(File::GetUserPath(D_RIIVOLUTION_IDX));
+  File::CreateFullPath(File::GetUserPath(D_SCRIPTS_IDX));
 }
 
 static void CreateResourcePackPath(std::string path)

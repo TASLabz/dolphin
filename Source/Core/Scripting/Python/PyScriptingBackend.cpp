@@ -33,7 +33,8 @@ static PyThreadState* InitMainPythonInterpreter()
       UTF8ToWString(File::GetCurrentDir()) + L";" +
       UTF8ToWString(File::GetExeDirectory()) + L"/python-embed/python38.zip;" +
       UTF8ToWString(File::GetExeDirectory()) + L"/python-embed;" +
-      UTF8ToWString(File::GetExeDirectory());
+      UTF8ToWString(File::GetExeDirectory()) + L";" +
+      UTF8ToWString(File::GetUserPath(D_SCRIPTS_IDX)) + L";";
 #endif
 
   if (PyImport_AppendInittab("dolio_stdout", PyInit_dolio_stdout) == -1)
@@ -61,7 +62,7 @@ static PyThreadState* InitMainPythonInterpreter()
   Py_SetPath(python_path.c_str());
 #endif
   INFO_LOG_FMT(SCRIPTING, "Initializing embedded python... {}", Py_GetVersion());
-  std::string scriptPath = File::GetUserPath(D_LOAD_IDX) + "Scripts";
+  std::string scriptPath = File::GetUserPath(D_SCRIPTS_IDX);
   PyConfig config;
   PyConfig_InitPythonConfig(&config);
 
