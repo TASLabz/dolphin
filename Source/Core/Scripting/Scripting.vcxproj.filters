@@ -35,6 +35,7 @@
     <ClCompile Include="Python\Modules\registersmodule.cpp">
       <Filter>Python\Modules</Filter>
     </ClCompile>
+    <ClCompile Include="ScriptList.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ScriptingEngine.h" />
@@ -86,6 +87,7 @@
     <ClCompile Include="Python\Modules\registersmodule.h">
       <Filter>Python\Modules</Filter>
     </ClCompile>
+    <ClInclude Include="ScriptList.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Python">

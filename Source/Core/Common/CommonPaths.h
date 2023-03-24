@@ -49,6 +49,7 @@
 #define HIRES_TEXTURES_DIR "Textures"
 #define RIIVOLUTION_DIR "Riivolution"
 #define SCRIPTS_DIR "Scripts"
+#define MODULES_DIR "Modules"
 #define DUMP_DIR "Dump"
 #define DUMP_TEXTURES_DIR "Textures"
 #define DUMP_FRAMES_DIR "Frames"

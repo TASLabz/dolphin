@@ -30,6 +30,12 @@
       <Project>{83794107-D372-4804-B463-E2719B50FB6B}</Project>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Scripting\ScriptList.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Scripting\ScriptList.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />
 </Project>

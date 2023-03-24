@@ -81,6 +81,8 @@
 #include "InputCommon/ControllerInterface/ControllerInterface.h"
 #include "InputCommon/GCAdapter.h"
 
+#include "Scripting/ScriptList.h"
+
 #include "VideoCommon/AsyncRequests.h"
 #include "VideoCommon/Fifo.h"
 #include "VideoCommon/HiresTextures.h"
@@ -283,6 +285,9 @@ void Stop()  // - Hammertime!
   HostDispatchJobs();
 
   Fifo::EmulatorState(false);
+
+  // Stop all script execution
+  Scripts::StopAllScripts();
 
   INFO_LOG_FMT(CONSOLE, "Stop [Main Thread]\t\t---- Shutting down ----");
 
@@ -655,6 +660,9 @@ static void EmuThread(std::unique_ptr<BootParameters> boot, WindowSystemInfo wsi
   {
     PowerPC::SetMode(PowerPC::CoreMode::Interpreter);
   }
+
+  // Take any pending scripts and instantiate backends
+  Scripts::StartPendingScripts();
 
   // ENTER THE VIDEO THREAD LOOP
   if (system.IsDualCoreMode())

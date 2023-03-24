@@ -15,10 +15,15 @@
 #include <QGroupBox>
 #include <QPushButton>
 #include <QFileDialog>
+#include <QDirIterator>
 
 #include "Common/MsgHandler.h"
+#include "Common/FileUtil.h"
 #include "DolphinQt/Scripting/ScriptingWidget.h"
 #include "DolphinQt/Settings.h"
+
+#include "Scripting/ScriptList.h"
+#include "Scripting/ScriptingEngine.h"
 
 ScriptingWidget::ScriptingWidget(QWidget* parent)
 {
@@ -66,7 +71,24 @@ ScriptingWidget::ScriptingWidget(QWidget* parent)
           &ScriptingWidget::RestartSelectedScript);
   connect(button_remove_selected, &QPushButton::clicked, this,
           &ScriptingWidget::RemoveSelectedScript);
+
+  PopulateScripts();
 }
+
+// Reads the scripts present in Load/Scripts/ and adds to the widget list
+void ScriptingWidget::PopulateScripts()
+{
+  QString dir = QString::fromStdString(File::GetUserPath(D_SCRIPTS_IDX));
+  QStringList fileFilter{QStringLiteral("*.py"), QStringLiteral("*.py3")};
+  QDirIterator it = QDirIterator(dir, fileFilter);
+
+  while (it.hasNext())
+  {
+    QFileInfo file = it.nextFileInfo();
+    bool autorun = file.fileName().at(0) == QChar(u'_');
+    m_scripts_model->Add(file.filesystemAbsoluteFilePath(), autorun);
+  }
+};
 
 void ScriptingWidget::AddNewScript()
 {

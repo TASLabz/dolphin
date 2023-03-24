@@ -952,6 +952,7 @@ static void RebuildUserDirectories(unsigned int dir_index)
     s_user_paths[D_HIRESTEXTURES_IDX] = s_user_paths[D_LOAD_IDX] + HIRES_TEXTURES_DIR DIR_SEP;
     s_user_paths[D_RIIVOLUTION_IDX] = s_user_paths[D_LOAD_IDX] + RIIVOLUTION_DIR DIR_SEP;
     s_user_paths[D_SCRIPTS_IDX] = s_user_paths[D_LOAD_IDX] + SCRIPTS_DIR DIR_SEP;
+    s_user_paths[D_MODULES_IDX] = s_user_paths[D_SCRIPTS_IDX] + MODULES_DIR DIR_SEP;
     s_user_paths[D_DUMP_IDX] = s_user_paths[D_USER_IDX] + DUMP_DIR DIR_SEP;
     s_user_paths[D_DUMPFRAMES_IDX] = s_user_paths[D_DUMP_IDX] + DUMP_FRAMES_DIR DIR_SEP;
     s_user_paths[D_DUMPOBJECTS_IDX] = s_user_paths[D_DUMP_IDX] + DUMP_OBJECTS_DIR DIR_SEP;
@@ -1046,6 +1047,7 @@ static void RebuildUserDirectories(unsigned int dir_index)
     s_user_paths[D_HIRESTEXTURES_IDX] = s_user_paths[D_LOAD_IDX] + HIRES_TEXTURES_DIR DIR_SEP;
     s_user_paths[D_RIIVOLUTION_IDX] = s_user_paths[D_LOAD_IDX] + RIIVOLUTION_DIR DIR_SEP;
     s_user_paths[D_SCRIPTS_IDX] = s_user_paths[D_LOAD_IDX] + SCRIPTS_DIR DIR_SEP;
+    s_user_paths[D_MODULES_IDX] = s_user_paths[D_SCRIPTS_IDX] + MODULES_DIR DIR_SEP;
     s_user_paths[D_DYNAMICINPUT_IDX] = s_user_paths[D_LOAD_IDX] + DYNAMICINPUT_DIR DIR_SEP;
     break;
   }
