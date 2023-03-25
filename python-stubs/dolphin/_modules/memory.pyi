@@ -1,7 +1,4 @@
-"""
-Module for interacting with the emulated machine's memory
-"""
-
+"""Module for interacting with the emulated machine's memory."""
 
 def read_u8(addr: int, /) -> int:
     """
@@ -11,7 +8,6 @@ def read_u8(addr: int, /) -> int:
     :return: value as integer
     """
 
-
 def read_u16(addr: int, /) -> int:
     """
     Reads 2 bytes as an unsigned integer.
@@ -19,7 +15,6 @@ def read_u16(addr: int, /) -> int:
     :param addr: memory address to read from
     :return: value as integer
     """
-
 
 def read_u32(addr: int, /) -> int:
     """
@@ -29,7 +24,6 @@ def read_u32(addr: int, /) -> int:
     :return: value as integer
     """
 
-
 def read_u64(addr: int, /) -> int:
     """
     Reads 8 bytes as an unsigned integer.
@@ -37,7 +31,6 @@ def read_u64(addr: int, /) -> int:
     :param addr: memory address to read from
     :return: value as integer
     """
-
 
 def read_s8(addr: int, /) -> int:
     """
@@ -47,7 +40,6 @@ def read_s8(addr: int, /) -> int:
     :return: value as integer
     """
 
-
 def read_s16(addr: int, /) -> int:
     """
     Reads 2 bytes as a signed integer.
@@ -55,7 +47,6 @@ def read_s16(addr: int, /) -> int:
     :param addr: memory address to read from
     :return: value as integer
     """
-
 
 def read_s32(addr: int, /) -> int:
     """
@@ -65,7 +56,6 @@ def read_s32(addr: int, /) -> int:
     :return: value as integer
     """
 
-
 def read_s64(addr: int, /) -> int:
     """
     Reads 8 bytes as a signed integer.
@@ -73,7 +63,6 @@ def read_s64(addr: int, /) -> int:
     :param addr: memory address to read from
     :return: value as integer
     """
-
 
 def read_f32(addr: int, /) -> float:
     """
@@ -83,7 +72,6 @@ def read_f32(addr: int, /) -> float:
     :return: value as floating point number
     """
 
-
 def read_f64(addr: int, /) -> float:
     """
     Reads 8 bytes as a floating point number.
@@ -92,8 +80,7 @@ def read_f64(addr: int, /) -> float:
     :return: value as floating point number
     """
 
-
-def write_u8(addr: int, value: int, /):
+def write_u8(addr: int, value: int, /) -> None:
     """
     Writes an unsigned integer to 1 byte.
     Overflowing values are truncated.
@@ -102,8 +89,7 @@ def write_u8(addr: int, value: int, /):
     :param value: value as integer
     """
 
-
-def write_u16(addr: int, value: int, /):
+def write_u16(addr: int, value: int, /) -> None:
     """
     Writes an unsigned integer to 2 bytes.
     Overflowing values are truncated.
@@ -112,8 +98,7 @@ def write_u16(addr: int, value: int, /):
     :param value: value as integer
     """
 
-
-def write_u32(addr: int, value: int, /):
+def write_u32(addr: int, value: int, /) -> None:
     """
     Writes an unsigned integer to 4 bytes.
     Overflowing values are truncated.
@@ -122,8 +107,7 @@ def write_u32(addr: int, value: int, /):
     :param value: value as integer
     """
 
-
-def write_u64(addr: int, value: int, /):
+def write_u64(addr: int, value: int, /) -> None:
     """
     Writes an unsigned integer to 8 bytes.
     Overflowing values are truncated.
@@ -132,8 +116,7 @@ def write_u64(addr: int, value: int, /):
     :param value: value as integer
     """
 
-
-def write_s8(addr: int, value: int, /):
+def write_s8(addr: int, value: int, /) -> None:
     """
     Writes a signed integer to 1 byte.
     Overflowing values are truncated.
@@ -142,8 +125,7 @@ def write_s8(addr: int, value: int, /):
     :param value: value as integer
     """
 
-
-def write_s16(addr: int, value: int, /):
+def write_s16(addr: int, value: int, /) -> None:
     """
     Writes a signed integer to 2 bytes.
     Overflowing values are truncated.
@@ -152,8 +134,7 @@ def write_s16(addr: int, value: int, /):
     :param value: value as integer
     """
 
-
-def write_s32(addr: int, value: int, /):
+def write_s32(addr: int, value: int, /) -> None:
     """
     Writes a signed integer to 4 bytes.
     Overflowing values are truncated.
@@ -162,8 +143,7 @@ def write_s32(addr: int, value: int, /):
     :param value: value as integer
     """
 
-
-def write_s64(addr: int, value: int, /):
+def write_s64(addr: int, value: int, /) -> None:
     """
     Writes a signed integer to 8 bytes.
     Overflowing values are truncated.
@@ -172,8 +152,7 @@ def write_s64(addr: int, value: int, /):
     :param value: value as integer
     """
 
-
-def write_f32(addr: int, value: float, /):
+def write_f32(addr: int, value: float, /) -> None:
     """
     Writes a floating point number to 4 bytes.
     Overflowing values are truncated.
@@ -182,8 +161,7 @@ def write_f32(addr: int, value: float, /):
     :param value: value as floating point number
     """
 
-
-def write_f64(addr: int, value: float, /):
+def write_f64(addr: int, value: float, /) -> None:
     """
     Writes a floating point number to 8 bytes.
     Overflowing values are truncated.
