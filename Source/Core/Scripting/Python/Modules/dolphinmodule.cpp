@@ -33,10 +33,11 @@ import dolphin_gui as gui
 import dolphin_savestate as savestate
 import dolphin_controller as controller
 import dolphin_registers as registers
+import dolphin_utils as utils
 
 # defining __all__ let's people import everything
 # using a star-import: from dolphin import *
-__all__ = [event, memory, gui, savestate, controller, registers]
+__all__ = [event, memory, gui, savestate, controller, registers, utils]
 )";
   Py::Object result = Py::LoadPyCodeIntoModule(module, pycode);
   if (result.IsNull())

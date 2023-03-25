@@ -21,6 +21,8 @@ add_library(scripting
   Python/Modules/registersmodule.h
   Python/Modules/savestatemodule.cpp
   Python/Modules/savestatemodule.h
+  Python/Modules/utilmodule.cpp
+  Python/Modules/utilmodule.h
   Python/Utils/as_py_func.h
   Python/Utils/convert.h
   Python/Utils/fmt.h
