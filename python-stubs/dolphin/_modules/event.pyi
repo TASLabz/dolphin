@@ -37,7 +37,7 @@ async def memorybreakpoint() -> tuple[bool, int, int]:
 
 @type_check_only
 class _SaveStateCallback(Protocol):
-    def __call__(self, isSlot: bool, slot: int) -> None:
+    def __call__(self, is_slot: bool, slot: int, /) -> None:
         """
         Example callback stub for on_savestatesave and/or on_savestateload.
 
