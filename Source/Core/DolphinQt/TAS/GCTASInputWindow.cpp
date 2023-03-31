@@ -30,58 +30,88 @@ GCTASInputWindow::GCTASInputWindow(QWidget* parent, int num) : TASInputWindow(pa
   top_layout->addWidget(m_main_stick_box);
   top_layout->addWidget(m_c_stick_box);
 
+  CreateTriggersBox();
+  CreateButtonsBox();
+
+  // Combine triggers, buttons, and settings into a single row layout
+  auto* trigger_and_buttons_layout = new QHBoxLayout();
+  trigger_and_buttons_layout->addWidget(m_triggers_box);
+  trigger_and_buttons_layout->addWidget(m_buttons_box);
+  trigger_and_buttons_layout->addWidget(m_settings_box);
+  trigger_and_buttons_layout->setAlignment(m_triggers_box, Qt::AlignTop);
+  trigger_and_buttons_layout->setAlignment(m_buttons_box, Qt::AlignTop);
+  trigger_and_buttons_layout->setAlignment(m_settings_box, Qt::AlignTop);
+
+  auto* layout = new QVBoxLayout;
+  layout->addLayout(top_layout);
+  layout->addLayout(trigger_and_buttons_layout);
+
+  setLayout(layout);
+
+  setMinimumWidth(430);
+  setMinimumHeight(375);
+}
+
+void GCTASInputWindow::CreateTriggersBox()
+{
   m_triggers_box = new QGroupBox(tr("Triggers"));
 
-  auto* l_trigger_layout =
-      CreateSliderValuePairLayout(tr("Left"), m_l_trigger_value, 0, 255, Qt::Key_N, m_triggers_box);
-  auto* r_trigger_layout = CreateSliderValuePairLayout(tr("Right"), m_r_trigger_value, 0, 255,
-                                                       Qt::Key_M, m_triggers_box);
+  auto* l_trigger_layout = new QVBoxLayout();
+  m_l_trigger_value =
+      CreateSliderValuePair(l_trigger_layout, 0, 255, Qt::Key_N, Qt::Vertical, m_triggers_box);
 
-  auto* triggers_layout = new QVBoxLayout;
+  auto* r_trigger_layout = new QVBoxLayout();
+  m_r_trigger_value =
+      CreateSliderValuePair(r_trigger_layout, 0, 255, Qt::Key_M, Qt::Vertical, m_triggers_box);
+
+  auto* triggers_layout = new QHBoxLayout;
   triggers_layout->addLayout(l_trigger_layout);
   triggers_layout->addLayout(r_trigger_layout);
   m_triggers_box->setLayout(triggers_layout);
+}
+
+void GCTASInputWindow::CreateButtonsBox()
+{
+  m_buttons_box = new QGroupBox(tr("Buttons"));
 
   m_a_button = CreateButton(QStringLiteral("&A"));
   m_b_button = CreateButton(QStringLiteral("&B"));
   m_x_button = CreateButton(QStringLiteral("&X"));
   m_y_button = CreateButton(QStringLiteral("&Y"));
-  m_z_button = CreateButton(QStringLiteral("&Z"));
   m_l_button = CreateButton(QStringLiteral("&L"));
+  m_z_button = CreateButton(QStringLiteral("&Z"));
   m_r_button = CreateButton(QStringLiteral("&R"));
-  m_start_button = CreateButton(QStringLiteral("&START"));
-  m_left_button = CreateButton(QStringLiteral("L&eft"));
-  m_up_button = CreateButton(QStringLiteral("&Up"));
-  m_down_button = CreateButton(QStringLiteral("&Down"));
-  m_right_button = CreateButton(QStringLiteral("R&ight"));
+  m_start_button = CreateButton(QStringLiteral("&S"));
+
+  m_left_button = CreateButton(QStringLiteral("L"));
+  m_up_button = CreateButton(QStringLiteral("U"));
+  m_down_button = CreateButton(QStringLiteral("D"));
+  m_right_button = CreateButton(QStringLiteral("R"));
 
   auto* buttons_layout = new QGridLayout;
   buttons_layout->addWidget(m_a_button, 0, 0);
   buttons_layout->addWidget(m_b_button, 0, 1);
   buttons_layout->addWidget(m_x_button, 0, 2);
   buttons_layout->addWidget(m_y_button, 0, 3);
-  buttons_layout->addWidget(m_z_button, 0, 4);
-  buttons_layout->addWidget(m_l_button, 0, 5);
-  buttons_layout->addWidget(m_r_button, 0, 6);
+  buttons_layout->addWidget(m_l_button, 1, 0);
+  buttons_layout->addWidget(m_z_button, 1, 1);
+  buttons_layout->addWidget(m_r_button, 1, 2);
+  buttons_layout->addWidget(m_start_button, 1, 3);
 
-  buttons_layout->addWidget(m_start_button, 1, 0);
-  buttons_layout->addWidget(m_left_button, 1, 1);
-  buttons_layout->addWidget(m_up_button, 1, 2);
-  buttons_layout->addWidget(m_down_button, 1, 3);
-  buttons_layout->addWidget(m_right_button, 1, 4);
+  auto* dpad_layout = new QGridLayout;
+  dpad_layout->addWidget(m_left_button, 1, 0);
+  dpad_layout->addWidget(m_up_button, 0, 1);
+  dpad_layout->addWidget(m_down_button, 2, 1);
+  dpad_layout->addWidget(m_right_button, 1, 2);
+  dpad_layout->setVerticalSpacing(0);
+  dpad_layout->setHorizontalSpacing(25);
 
-  buttons_layout->addItem(new QSpacerItem(1, 1, QSizePolicy::Expanding), 0, 7);
+  auto* combined_layout = new QVBoxLayout();
+  combined_layout->setAlignment(Qt::AlignTop);
+  combined_layout->addLayout(buttons_layout);
+  combined_layout->addLayout(dpad_layout);
 
-  m_buttons_box = new QGroupBox(tr("Buttons"));
-  m_buttons_box->setLayout(buttons_layout);
-
-  auto* layout = new QVBoxLayout;
-  layout->addLayout(top_layout);
-  layout->addWidget(m_triggers_box);
-  layout->addWidget(m_buttons_box);
-  layout->addWidget(m_settings_box);
-
-  setLayout(layout);
+  m_buttons_box->setLayout(combined_layout);
 }
 
 void GCTASInputWindow::GetValues(GCPadStatus* pad)

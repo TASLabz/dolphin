@@ -32,22 +32,31 @@ TASInputWindow::TASInputWindow(QWidget* parent) : QDialog(parent)
 
   QGridLayout* settings_layout = new QGridLayout;
 
-  m_use_controller = new QCheckBox(QStringLiteral("Enable Controller Inpu&t"));
+  m_use_controller = new QCheckBox(QStringLiteral("Enable Controller"));
   m_use_controller->setToolTip(tr("Warning: Analog inputs may reset to controller values at "
                                   "random. In some cases this can be fixed by adding a deadzone."));
   settings_layout->addWidget(m_use_controller, 0, 0, 1, 2);
 
-  QLabel* turbo_press_label = new QLabel(tr("Duration of Turbo Button Press (frames):"));
+  auto* turbo_box = new QGroupBox(tr("Turbo"));
+
+  settings_layout->addWidget(turbo_box, 1, 0);
+
+  QGridLayout* turbo_layout = new QGridLayout;
+
+  QLabel* turbo_press_label = new QLabel(tr("Press:"));
   m_turbo_press_frames = new QSpinBox();
   m_turbo_press_frames->setMinimum(1);
-  settings_layout->addWidget(turbo_press_label, 1, 0);
-  settings_layout->addWidget(m_turbo_press_frames, 1, 1);
+  turbo_layout->addWidget(turbo_press_label, 0, 0);
+  turbo_layout->addWidget(m_turbo_press_frames, 0, 1);
 
-  QLabel* turbo_release_label = new QLabel(tr("Duration of Turbo Button Release (frames):"));
+  QLabel* turbo_release_label = new QLabel(tr("Release:"));
   m_turbo_release_frames = new QSpinBox();
   m_turbo_release_frames->setMinimum(1);
-  settings_layout->addWidget(turbo_release_label, 2, 0);
-  settings_layout->addWidget(m_turbo_release_frames, 2, 1);
+
+  turbo_layout->addWidget(turbo_release_label, 1, 0);
+  turbo_layout->addWidget(m_turbo_release_frames, 1, 1);
+
+  turbo_box->setLayout(turbo_layout);
 
   m_settings_box = new QGroupBox(tr("Settings"));
   m_settings_box->setLayout(settings_layout);
@@ -90,11 +99,12 @@ QGroupBox* TASInputWindow::CreateStickInputs(QString name, QSpinBox*& x_value, Q
   auto* y_layout = new QVBoxLayout;
   y_value =
       CreateSliderValuePair(y_layout, y_default, max_y, y_shortcut_key_sequence, Qt::Vertical, box);
-  y_value->setMaximumWidth(60);
 
   auto* visual = new StickWidget(this, max_x, max_y);
   visual->SetX(x_default);
   visual->SetY(y_default);
+  visual->setMinimumHeight(100);
+  visual->setMinimumWidth(100);
 
   connect(x_value, qOverload<int>(&QSpinBox::valueChanged), visual, &StickWidget::SetX);
   connect(y_value, qOverload<int>(&QSpinBox::valueChanged), visual, &StickWidget::SetY);
@@ -111,6 +121,8 @@ QGroupBox* TASInputWindow::CreateStickInputs(QString name, QSpinBox*& x_value, Q
   layout->addLayout(x_layout);
   layout->addLayout(visual_layout);
   box->setLayout(layout);
+
+  box->setMinimumWidth(150);
 
   return box;
 }
@@ -143,6 +155,8 @@ QSpinBox* TASInputWindow::CreateSliderValuePair(QBoxLayout* layout, int default_
   auto* value = new QSpinBox();
   value->setRange(0, 99999);
   value->setValue(default_);
+  value->setButtonSymbols(QAbstractSpinBox::NoButtons);
+  value->setMaximumWidth(40);
   connect(value, qOverload<int>(&QSpinBox::valueChanged), [value, max](int i) {
     if (i > max)
       value->setValue(max);
@@ -166,6 +180,8 @@ QSpinBox* TASInputWindow::CreateSliderValuePair(QBoxLayout* layout, int default_
   layout->addWidget(value);
   if (orientation == Qt::Vertical)
     layout->setAlignment(slider, Qt::AlignRight);
+
+  slider->setMinimumHeight(10);
 
   return value;
 }
