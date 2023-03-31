@@ -38,6 +38,13 @@ void StickWidget::SetY(u16 y)
   update();
 }
 
+void StickWidget::SetAxisLines(bool toggle)
+{
+  m_axis_lines = toggle;
+
+  update();
+}
+
 void StickWidget::paintEvent(QPaintEvent* event)
 {
   QPainter painter(this);
@@ -53,8 +60,11 @@ void StickWidget::paintEvent(QPaintEvent* event)
   painter.setBrush(Qt::white);
   painter.drawEllipse(PADDING, PADDING, diameter, diameter);
 
-  painter.drawLine(PADDING, PADDING + diameter / 2, PADDING + diameter, PADDING + diameter / 2);
-  painter.drawLine(PADDING + diameter / 2, PADDING, PADDING + diameter / 2, PADDING + diameter);
+  if (m_axis_lines)
+  {
+    painter.drawLine(PADDING, PADDING + diameter / 2, PADDING + diameter, PADDING + diameter / 2);
+    painter.drawLine(PADDING + diameter / 2, PADDING, PADDING + diameter / 2, PADDING + diameter);
+  }
 
   // convert from value space to widget space
   u16 x = PADDING + ((m_x * diameter) / m_max_x);

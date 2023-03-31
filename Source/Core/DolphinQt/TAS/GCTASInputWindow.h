@@ -39,8 +39,8 @@ private:
   QSpinBox* m_y_main_stick_value;
   QSpinBox* m_x_c_stick_value;
   QSpinBox* m_y_c_stick_value;
-  QGroupBox* m_main_stick_box;
-  QGroupBox* m_c_stick_box;
+  TASStickBox* m_main_stick_box;
+  TASStickBox* m_c_stick_box;
   QGroupBox* m_triggers_box;
   QGroupBox* m_buttons_box;
 };

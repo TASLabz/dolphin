@@ -13,7 +13,9 @@
 
 #include "Common/CommonTypes.h"
 
+#include "DolphinQt/TAS/StickWidget.h"
 #include "DolphinQt/TAS/TASCheckBox.h"
+#include "DolphinQt/TAS/TASStickBox.h"
 
 #include "InputCommon/GCPadStatus.h"
 
@@ -49,7 +51,13 @@ GCTASInputWindow::GCTASInputWindow(QWidget* parent, int num) : TASInputWindow(pa
   setLayout(layout);
 
   setMinimumWidth(430);
-  setMinimumHeight(375);
+  setMinimumHeight(390);
+
+  connect(m_toggle_lines, &QCheckBox::toggled, m_main_stick_box->GetStickWidget(),
+          &StickWidget::SetAxisLines);
+  connect(m_toggle_lines, &QCheckBox::toggled, m_c_stick_box->GetStickWidget(),
+          &StickWidget::SetAxisLines);
+
 }
 
 void GCTASInputWindow::CreateTriggersBox()
@@ -79,8 +87,8 @@ void GCTASInputWindow::CreateButtonsBox()
   m_x_button = CreateButton(QStringLiteral("&X"));
   m_y_button = CreateButton(QStringLiteral("&Y"));
   m_l_button = CreateButton(QStringLiteral("&L"));
-  m_z_button = CreateButton(QStringLiteral("&Z"));
   m_r_button = CreateButton(QStringLiteral("&R"));
+  m_z_button = CreateButton(QStringLiteral("&Z"));
   m_start_button = CreateButton(QStringLiteral("&S"));
 
   m_left_button = CreateButton(QStringLiteral("L"));
@@ -94,8 +102,8 @@ void GCTASInputWindow::CreateButtonsBox()
   buttons_layout->addWidget(m_x_button, 0, 2);
   buttons_layout->addWidget(m_y_button, 0, 3);
   buttons_layout->addWidget(m_l_button, 1, 0);
-  buttons_layout->addWidget(m_z_button, 1, 1);
-  buttons_layout->addWidget(m_r_button, 1, 2);
+  buttons_layout->addWidget(m_r_button, 1, 1);
+  buttons_layout->addWidget(m_z_button, 1, 2);
   buttons_layout->addWidget(m_start_button, 1, 3);
 
   auto* dpad_layout = new QGridLayout;

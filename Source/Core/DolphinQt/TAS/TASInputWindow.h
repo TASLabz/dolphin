@@ -15,6 +15,7 @@ class QGroupBox;
 class QSpinBox;
 class QString;
 class TASCheckBox;
+class TASStickBox;
 
 class TASInputWindow : public QDialog
 {
@@ -30,7 +31,7 @@ protected:
   void focusInEvent(QFocusEvent* event) override;
 
   TASCheckBox* CreateButton(const QString& name);
-  QGroupBox* CreateStickInputs(QString name, QSpinBox*& x_value, QSpinBox*& y_value, u16 max_x,
+  TASStickBox* CreateStickInputs(QString name, QSpinBox*& x_value, QSpinBox*& y_value, u16 max_x,
                                u16 max_y, Qt::Key x_shortcut_key, Qt::Key y_shortcut_key);
   QBoxLayout* CreateSliderValuePairLayout(QString name, QSpinBox*& value, int default_, u16 max,
                                           Qt::Key shortcut_key, QWidget* shortcut_widget,
@@ -45,6 +46,7 @@ protected:
 
   QGroupBox* m_settings_box;
   QCheckBox* m_use_controller;
+  QCheckBox* m_toggle_lines;
   QSpinBox* m_turbo_press_frames;
   QSpinBox* m_turbo_release_frames;
 

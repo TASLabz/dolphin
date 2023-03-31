@@ -23,6 +23,7 @@
 #include "DolphinQt/TAS/StickWidget.h"
 #include "DolphinQt/TAS/TASCheckBox.h"
 #include "DolphinQt/TAS/TASSlider.h"
+#include "DolphinQt/TAS/TASStickBox.h"
 
 #include "InputCommon/GCPadStatus.h"
 
@@ -38,9 +39,11 @@ TASInputWindow::TASInputWindow(QWidget* parent) : QDialog(parent)
                                   "random. In some cases this can be fixed by adding a deadzone."));
   settings_layout->addWidget(m_use_controller, 0, 0, 1, 2);
 
-  auto* turbo_box = new QGroupBox(tr("Turbo"));
+  m_toggle_lines = new QCheckBox(QStringLiteral("Enable Axis Lines"));
+  settings_layout->addWidget(m_toggle_lines, 1, 0, 1, 2);
 
-  settings_layout->addWidget(turbo_box, 1, 0);
+  auto* turbo_box = new QGroupBox(tr("Turbo"));
+  settings_layout->addWidget(turbo_box, 2, 0);
 
   QGridLayout* turbo_layout = new QGridLayout;
 
@@ -78,17 +81,17 @@ TASCheckBox* TASInputWindow::CreateButton(const QString& name)
   return new TASCheckBox(name, this);
 }
 
-QGroupBox* TASInputWindow::CreateStickInputs(QString name, QSpinBox*& x_value, QSpinBox*& y_value,
-                                             u16 max_x, u16 max_y, Qt::Key x_shortcut_key,
-                                             Qt::Key y_shortcut_key)
+TASStickBox* TASInputWindow::CreateStickInputs(QString name, QSpinBox*& x_value,
+                                                 QSpinBox*& y_value, u16 max_x, u16 max_y,
+                                                 Qt::Key x_shortcut_key, Qt::Key y_shortcut_key)
 {
   const QKeySequence x_shortcut_key_sequence = QKeySequence(Qt::ALT | x_shortcut_key);
   const QKeySequence y_shortcut_key_sequence = QKeySequence(Qt::ALT | y_shortcut_key);
 
   auto* box =
-      new QGroupBox(QStringLiteral("%1 (%2/%3)")
-                        .arg(name, x_shortcut_key_sequence.toString(QKeySequence::NativeText),
-                             y_shortcut_key_sequence.toString(QKeySequence::NativeText)));
+      new TASStickBox(QStringLiteral("%1 (%2/%3)")
+                            .arg(name, x_shortcut_key_sequence.toString(QKeySequence::NativeText),
+                                 y_shortcut_key_sequence.toString(QKeySequence::NativeText)));
 
   const int x_default = static_cast<int>(std::round(max_x / 2.));
   const int y_default = static_cast<int>(std::round(max_y / 2.));
@@ -102,6 +105,7 @@ QGroupBox* TASInputWindow::CreateStickInputs(QString name, QSpinBox*& x_value, Q
       CreateSliderValuePair(y_layout, y_default, max_y, y_shortcut_key_sequence, Qt::Vertical, box);
 
   auto* visual = new StickWidget(this, max_x, max_y);
+  box->SetStickWidget(visual);
   visual->SetX(x_default);
   visual->SetY(y_default);
   visual->setMinimumHeight(100);

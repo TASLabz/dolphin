@@ -32,7 +32,9 @@
 #include "DolphinQt/QtUtils/AspectRatioWidget.h"
 #include "DolphinQt/QtUtils/QueueOnObject.h"
 #include "DolphinQt/TAS/IRWidget.h"
+#include "DolphinQt/TAS/StickWidget.h"
 #include "DolphinQt/TAS/TASCheckBox.h"
+#include "DolphinQt/TAS/TASStickBox.h"
 
 #include "InputCommon/InputConfig.h"
 
@@ -90,6 +92,13 @@ WiiTASInputWindow::WiiTASInputWindow(QWidget* parent, int num) : TASInputWindow(
   m_classic_right_stick_box =
       CreateStickInputs(tr("Right Stick"), m_classic_right_stick_x_value,
                         m_classic_right_stick_y_value, 31, 31, Qt::Key_Q, Qt::Key_W);
+
+  connect(m_toggle_lines, &QCheckBox::toggled, m_nunchuk_stick_box->GetStickWidget(),
+          &StickWidget::SetAxisLines);
+  connect(m_toggle_lines, &QCheckBox::toggled, m_classic_left_stick_box->GetStickWidget(),
+          &StickWidget::SetAxisLines);
+  connect(m_toggle_lines, &QCheckBox::toggled, m_classic_right_stick_box->GetStickWidget(),
+          &StickWidget::SetAxisLines);
 
   // Need to enforce the same minimum width because otherwise the different lengths in the labels
   // used on the QGroupBox will cause the StickWidgets to have different sizes.
