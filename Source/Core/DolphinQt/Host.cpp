@@ -126,7 +126,7 @@ static void RunWithGPUThreadInactive(std::function<void()> f)
   }
 }
 
-bool Host::GetRenderFocus()
+bool Host::GetRenderFocus() const
 {
 #ifdef _WIN32
   // Unfortunately Qt calls SetRenderFocus() with a slight delay compared to what we actually need
@@ -139,7 +139,7 @@ bool Host::GetRenderFocus()
 #endif
 }
 
-bool Host::GetRenderFullFocus()
+bool Host::GetRenderFullFocus() const
 {
   return m_render_full_focus;
 }
@@ -161,7 +161,17 @@ void Host::SetRenderFullFocus(bool focus)
   m_render_full_focus = focus;
 }
 
-bool Host::GetGBAFocus()
+bool Host::GetTASInputFullFocus() const
+{
+  return m_tas_input_full_focus;
+}
+
+void Host::SetTASInputFullFocus(bool focus)
+{
+  m_tas_input_full_focus = focus;
+}
+
+bool Host::GetGBAFocus() const
 {
 #ifdef HAS_LIBMGBA
   return qobject_cast<GBAWidget*>(QApplication::activeWindow()) != nullptr;
@@ -170,7 +180,7 @@ bool Host::GetGBAFocus()
 #endif
 }
 
-bool Host::GetRenderFullscreen()
+bool Host::GetRenderFullscreen() const
 {
   return m_render_fullscreen;
 }
@@ -235,6 +245,11 @@ bool Host_RendererHasFullFocus()
 bool Host_RendererIsFullscreen()
 {
   return Host::GetInstance()->GetRenderFullscreen();
+}
+
+bool Host_TASInputHasFullFocus()
+{
+  return Host::GetInstance()->GetTASInputFullFocus();
 }
 
 void Host_YieldToUI()

@@ -26,6 +26,9 @@ public:
   int GetTurboReleaseFrames() const;
 
 protected:
+  void focusOutEvent(QFocusEvent* event) override;
+  void focusInEvent(QFocusEvent* event) override;
+
   TASCheckBox* CreateButton(const QString& name);
   QGroupBox* CreateStickInputs(QString name, QSpinBox*& x_value, QSpinBox*& y_value, u16 max_x,
                                u16 max_y, Qt::Key x_shortcut_key, Qt::Key y_shortcut_key);
@@ -46,6 +49,7 @@ protected:
   QSpinBox* m_turbo_release_frames;
 
 private:
+
   std::map<TASCheckBox*, bool> m_checkbox_set_by_controller;
   std::map<QSpinBox*, u8> m_spinbox_most_recent_values_u8;
   std::map<QSpinBox*, u8> m_spinbox_most_recent_values_u16;
