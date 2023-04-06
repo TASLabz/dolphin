@@ -1,15 +1,12 @@
 #include "utilmodule.h"
 
-#include <QObject>
-#include <QString>
-#include <QWidget>
+#include <nfd.h>
 
 #include "Common/FileUtil.h"
 #include "Common/Logging/Log.h"
 #include "Common/Config/Config.h"
 #include "Core/Config/MainSettings.h"
 #include "Core/Core.h"
-#include "DolphinQt/QtUtils/DolphinFileDialog.h"
 #include "Scripting/Python/Utils/module.h"
 #include "Scripting/Python/Utils/as_py_func.h"
 
@@ -23,14 +20,6 @@ static std::string scriptDir;
 static PyObject* get_script_dir(PyObject* module, PyObject* args)
 {
   return Py_BuildValue("s", scriptDir.c_str());
-}
-
-static PyObject* open_file(PyObject* module, PyObject* args)
-{
-  QString fileName =
-      DolphinFileDialog::getOpenFileName(nullptr, QObject::tr("Open File"), scriptDir.c_str());
-
-  return Py_BuildValue("s", fileName.toLocal8Bit().constData());
 }
 
 static PyObject* start_framedump(PyObject* module, PyObject* args)
@@ -88,6 +77,21 @@ static PyObject* save_screenshot(PyObject* module, PyObject* args, PyObject* kwa
   Py_RETURN_NONE;
 }
 
+static PyObject* open_file(PyObject* module, PyObject* args)
+{
+  std::string filePath;
+
+  NFD_Init();
+  
+  nfdchar_t *outPath;
+  nfdfilteritem_t filterItem[1] = { { "All Files", "*" } };
+  nfdresult_t result = NFD_OpenDialog(&outPath, filterItem, 1, NULL);
+
+  filePath = outPath;
+ 
+  return Py_BuildValue("s", filePath.c_str());
+}
+
 static void setup_file_module(PyObject* module, FileState* state)
 {
   // I don't think we need anything here yet
@@ -97,7 +101,7 @@ PyMODINIT_FUNC PyInit_dol_utils()
 {
   scriptDir = File::GetUserPath(D_LOAD_IDX) + "Scripts";
   static PyMethodDef methods[] = {{"get_script_dir", get_script_dir, METH_NOARGS, ""},
-                                  {"open_file", open_file, METH_NOARGS, ""},
+  								  {"open_file", open_file, METH_NOARGS, ""},
                                   {"start_framedump", start_framedump, METH_NOARGS, ""},
                                   {"stop_framedump", stop_framedump, METH_NOARGS, ""},
                                   {"is_framedumping", is_framedumping, METH_NOARGS, ""},

@@ -81,6 +81,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fmt", "..\Externals\fmt\fmt
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Scripting", "Core\Scripting\Scripting.vcxproj", "{83794107-D372-4804-B463-E2719B50FB6B}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "nfd", "..\Externals\nativefiledialog-extended\nfd.vcxproj", {7E931AE3-A819-4D06-AFDA-A39C372EB8CF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|ARM64 = Debug|ARM64

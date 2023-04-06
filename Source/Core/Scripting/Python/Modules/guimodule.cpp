@@ -214,7 +214,6 @@ PyMODINIT_FUNC PyInit_gui()
   static PyMethodDef methods[] = {
       {"_add_osd_message", Py::as_py_func<add_osd_message>, METH_VARARGS, ""},
       {"clear_osd_messages", Py::as_py_func<clear_osd_messages>, METH_VARARGS, ""},
-
       {"get_display_size", get_display_size, METH_NOARGS, ""},
       {"_draw_line", Py::as_py_func<draw_line>, METH_VARARGS, ""},
       {"_draw_rect", Py::as_py_func<draw_rect>, METH_VARARGS, ""},

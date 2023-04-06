@@ -651,6 +651,8 @@ else()
   add_subdirectory(Externals/fmt EXCLUDE_FROM_ALL)
 endif()
 add_subdirectory(Externals/imgui)
+add_subdirectory(Externals/nativefiledialog-extended)
+include_directories(Externals/nativefiledialog-extended/src/include)
 add_subdirectory(Externals/glslang)
 
 if(ENABLE_VULKAN)
