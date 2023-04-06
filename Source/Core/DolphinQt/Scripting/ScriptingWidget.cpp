@@ -15,10 +15,15 @@
 #include <QGroupBox>
 #include <QPushButton>
 #include <QFileDialog>
+#include <QDirIterator>
 
 #include "Common/MsgHandler.h"
+#include "Common/FileUtil.h"
 #include "DolphinQt/Scripting/ScriptingWidget.h"
 #include "DolphinQt/Settings.h"
+
+#include "Scripting/ScriptList.h"
+#include "Scripting/ScriptingEngine.h"
 
 ScriptingWidget::ScriptingWidget(QWidget* parent)
 {
@@ -26,7 +31,7 @@ ScriptingWidget::ScriptingWidget(QWidget* parent)
 
   // actions
   QPushButton* button_add_new = new QPushButton(tr("Add New Script"));
-  QPushButton* button_reload_selected = new QPushButton(tr("Reload Selected Script"));
+  QPushButton* button_reload_selected = new QPushButton(tr("Restart Selected Script"));
   QPushButton* button_remove_selected = new QPushButton(tr("Remove Selected Script"));
   QHBoxLayout* actions_layout = new QHBoxLayout;
   actions_layout->addWidget(button_add_new);
@@ -40,13 +45,13 @@ ScriptingWidget::ScriptingWidget(QWidget* parent)
   m_table_view = new QTableView();
   m_table_view->setModel(m_scripts_model);
   m_table_view->horizontalHeader()->setStretchLastSection(true);
-  m_table_view->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+  m_table_view->horizontalHeader()->hide();
   m_table_view->verticalHeader()->hide();
   m_table_view->setSelectionBehavior(QAbstractItemView::SelectRows);
   m_table_view->setSelectionMode(QAbstractItemView::SingleSelection);
 
   // put in group box
-  QGroupBox* scripts_group = new QGroupBox(tr("Running scripts"));
+  QGroupBox* scripts_group = new QGroupBox(tr("Loaded Scripts"));
   QVBoxLayout* scripts_layout = new QVBoxLayout;
   scripts_group->setLayout(scripts_layout);
   scripts_layout->addWidget(m_table_view);
@@ -63,10 +68,27 @@ ScriptingWidget::ScriptingWidget(QWidget* parent)
 
   connect(button_add_new, &QPushButton::clicked, this, &ScriptingWidget::AddNewScript);
   connect(button_reload_selected, &QPushButton::clicked, this,
-          &ScriptingWidget::ReloadSelectedScript);
+          &ScriptingWidget::RestartSelectedScript);
   connect(button_remove_selected, &QPushButton::clicked, this,
           &ScriptingWidget::RemoveSelectedScript);
+
+  PopulateScripts();
 }
+
+// Reads the scripts present in Load/Scripts/ and adds to the widget list
+void ScriptingWidget::PopulateScripts()
+{
+  QString dir = QString::fromStdString(File::GetUserPath(D_SCRIPTS_IDX));
+  QStringList fileFilter{QStringLiteral("*.py"), QStringLiteral("*.py3")};
+  QDirIterator it = QDirIterator(dir, fileFilter);
+
+  while (it.hasNext())
+  {
+    QFileInfo file = it.nextFileInfo();
+    bool autorun = file.fileName().at(0) == QChar(u'_');
+    m_scripts_model->Add(file.filesystemAbsoluteFilePath(), autorun);
+  }
+};
 
 void ScriptingWidget::AddNewScript()
 {
@@ -86,11 +108,11 @@ void ScriptingWidget::AddNewScript()
   }
 }
 
-void ScriptingWidget::ReloadSelectedScript()
+void ScriptingWidget::RestartSelectedScript()
 {
   for (const QModelIndex& q_index : m_table_view->selectionModel()->selectedRows())
   {
-    m_scripts_model->Reload(q_index.row());
+    m_scripts_model->Restart(q_index.row());
   }
 }
 
@@ -102,7 +124,7 @@ void ScriptingWidget::RemoveSelectedScript()
   }
 }
 
-void ScriptingWidget::AddScript(std::string filename)
+void ScriptingWidget::AddScript(std::string filename, bool enabled /* = false */)
 {
-  m_scripts_model->Add(filename);
+  m_scripts_model->Add(filename, enabled);
 }

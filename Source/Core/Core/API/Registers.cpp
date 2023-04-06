@@ -11,24 +11,24 @@ namespace API::Registers
 
 u32 Read_GPR(u32 index)
 {
-  return GPR(index);
+  return PowerPC::ppcState.gpr[index];
 }
 
 double Read_FPR(u32 index)
 {
-  return rPS(index).PS0AsDouble();
+  return PowerPC::ppcState.ps[index].PS0AsDouble();
 }
 
 // register writing
 
 void Write_GPR(u32 index, u32 value)
 {
-  GPR(index) = value;
+  PowerPC::ppcState.gpr[index] = value;
 }
 
 void Write_FPR(u32 index, double value)
 {
-  rPS(index).SetPS0(value);
+  PowerPC::ppcState.ps[index].SetPS0(value);
 }
 
 }  // namespace API::Registers

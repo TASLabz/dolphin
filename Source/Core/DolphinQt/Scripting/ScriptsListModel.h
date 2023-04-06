@@ -6,13 +6,9 @@
 
 #include <QAbstractListModel>
 
-#include "Scripting/ScriptingEngine.h"
+#include <filesystem>
 
-struct Script
-{
-  std::string filename;
-  Scripting::ScriptingBackend backend;
-};
+
 
 class ScriptsListModel : public QAbstractListModel
 {
@@ -22,15 +18,10 @@ public:
   int rowCount(const QModelIndex &parent = QModelIndex()) const override;
   int columnCount(const QModelIndex &parent = QModelIndex()) const override;
   QVariant data(const QModelIndex &index, int role) const override;
-  QVariant headerData(int section, Qt::Orientation orientation,
-                      int role = Qt::DisplayRole) const override;
-  bool insertRows(int position, int rows, const QModelIndex &index = QModelIndex()) override;
-  bool removeRows(int position, int rows, const QModelIndex &index = QModelIndex()) override;
+  bool setData(const QModelIndex& index, const QVariant& value, int role) override;
+  Qt::ItemFlags flags(const QModelIndex& index) const override;
 
-  void Add(std::string filename);
-  void Reload(int index);
+  void Add(std::filesystem::path path, bool enabled = false);
+  void Restart(int index);
   void Remove(int index);
-
-private:
-  std::vector<Script> m_scripts;
 };

@@ -34,7 +34,7 @@ void Gui::Render()
   ImGui::SetNextWindowPos(ImVec2{0, 0});
   ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
   static auto flags =
-          ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoDecoration;
+    ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoDecoration;
 
   ImGui::Begin("gui api", nullptr, flags);
   ImDrawList* draw_list = ImGui::GetWindowDrawList();
@@ -56,7 +56,7 @@ void Gui::DrawLine(const Vec2f a, const Vec2f b, u32 color, float thickness)
 void Gui::DrawRect(const Vec2f a, const Vec2f b, u32 color, float rounding, float thickness)
 {
   GUI_DRAW_DEFERRED(
-      AddRect(a, b, ARGBToABGR(color), rounding, ImDrawFlags_RoundCornersAll, thickness));
+    AddRect(a, b, ARGBToABGR(color), rounding, ImDrawFlags_RoundCornersAll, thickness));
 }
 
 void Gui::DrawRectFilled(const Vec2f a, const Vec2f b, u32 color, float rounding)
@@ -102,7 +102,7 @@ void Gui::DrawText(const Vec2f pos, u32 color, std::string text)
 void Gui::DrawPolyline(const std::vector<Vec2f> points, u32 color, bool closed, float thickness)
 {
   GUI_DRAW_DEFERRED(
-      AddPolyline(points.data(), (int)points.size(), color, ARGBToABGR(color), thickness));
+    AddPolyline(points.data(), (int)points.size(), color, ARGBToABGR(color), thickness));
 }
 
 void Gui::DrawConvexPolyFilled(const std::vector<Vec2f> points, u32 color)

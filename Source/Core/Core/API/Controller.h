@@ -7,6 +7,8 @@
 #include "Common/CommonTypes.h"
 #include "Core/API/Events.h"
 #include "Core/HW/WiimoteCommon/DataReport.h"
+#include "Core/HW/WiimoteEmu/Encryption.h"
+#include "Core/HW/WiimoteEmu/Extension/Nunchuk.h"
 #include "InputCommon/GCPadStatus.h"
 
 namespace API
@@ -25,7 +27,7 @@ public:
   BaseManip(API::EventHub& event_hub) : m_event_hub(event_hub)
   {
     m_frame_advanced_listener = m_event_hub.ListenEvent<API::Events::FrameAdvance>(
-        [&](const API::Events::FrameAdvance&) { NotifyFrameAdvanced(); });
+      [&](const API::Events::FrameAdvance&) { NotifyFrameAdvanced(); });
   }
   ~BaseManip() { m_event_hub.UnlistenEvent(m_frame_advanced_listener); }
   void Clear() { m_overrides.clear(); }
@@ -50,6 +52,13 @@ private:
   API::ListenerID<API::Events::FrameAdvance> m_frame_advanced_listener;
 };
 
+struct GCInputOverride
+{
+  GCPadStatus pad_status;
+  ClearOn clear_on;
+  bool used;
+};
+
 struct WiiInputButtonsOverride
 {
   WiimoteCommon::ButtonData button_data;
@@ -70,6 +79,22 @@ struct WiiInputIROverride
   bool used;
 };
 
+struct NunchuckButtonsOverride
+{
+  WiimoteEmu::Nunchuk::DataFormat button_data;
+  ClearOn clear_on;
+  bool used;
+};
+
+class GCManip : public BaseManip<GCInputOverride>
+{
+public:
+  using BaseManip::BaseManip;
+  GCPadStatus Get(int controller_id);
+  void Set(GCPadStatus pad_status, int controller_id, ClearOn clear_on);
+  void PerformInputManip(GCPadStatus* pad_status, int controller_id);
+};
+
 class WiiButtonsManip : public BaseManip<WiiInputButtonsOverride>
 {
 public:
@@ -87,25 +112,25 @@ public:
   void PerformInputManip(WiimoteCommon::DataReportBuilder& rpt, int controller_id);
 };
 
-struct GCInputOverride
-{
-  GCPadStatus pad_status;
-  ClearOn clear_on;
-  bool used;
-};
-
-class GCManip : public BaseManip<GCInputOverride>
+class NunchuckButtonsManip : public BaseManip<NunchuckButtonsOverride>
 {
 public:
   using BaseManip::BaseManip;
-  GCPadStatus Get(int controller_id);
-  void Set(GCPadStatus pad_status, int controller_id, ClearOn clear_on);
-  void PerformInputManip(GCPadStatus* pad_status, int controller_id);
+  WiimoteEmu::Nunchuk::DataFormat Get(int controller_id);
+  void Set(WiimoteEmu::Nunchuk::DataFormat button_data, int controller_id, ClearOn clear_on);
+  void PerformInputManip(WiimoteCommon::DataReportBuilder& rpt, int controller_id,
+                         WiimoteEmu::EncryptionKey key);
+  void SaveNunchuckState(WiimoteCommon::DataReportBuilder& rpt,
+                         int controller_id, WiimoteEmu::EncryptionKey key);
+
+private:
+  std::map<int, WiimoteEmu::Nunchuk::DataFormat> m_nunchuk_state;
 };
 
 // global instances
 GCManip& GetGCManip();
 WiiButtonsManip& GetWiiButtonsManip();
 WiiIRManip& GetWiiIRManip();
+NunchuckButtonsManip& GetNunchuckButtonsManip();
 
 }  // namespace API

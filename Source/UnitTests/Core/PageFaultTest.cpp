@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <chrono>
+#include <fmt/format.h>
 
 #include "Common/CommonTypes.h"
 #include "Common/Timer.h"
 #include "Core/MemTools.h"
 #include "Core/PowerPC/JitCommon/JitBase.h"
 #include "Core/PowerPC/JitInterface.h"
+#include "Core/System.h"
 
 // include order is important
 #include <gtest/gtest.h>  // NOLINT
@@ -24,6 +26,8 @@ enum
 class PageFaultFakeJit : public JitBase
 {
 public:
+  explicit PageFaultFakeJit(Core::System& system) : JitBase(system) {}
+
   // CPUCoreBase methods
   void Init() override {}
   void Shutdown() override {}
@@ -71,24 +75,30 @@ TEST(PageFault, PageFault)
   EXPECT_NE(data, nullptr);
   Common::WriteProtectMemory(data, PAGE_GRAN, false);
 
-  PageFaultFakeJit pfjit;
-  JitInterface::SetJit(&pfjit);
+  auto& system = Core::System::GetInstance();
+  auto unique_pfjit = std::make_unique<PageFaultFakeJit>(system);
+  auto& pfjit = *unique_pfjit;
+  system.GetJitInterface().SetJit(std::move(unique_pfjit));
   pfjit.m_data = data;
 
   auto start = std::chrono::high_resolution_clock::now();
   perform_invalid_access(data);
   auto end = std::chrono::high_resolution_clock::now();
 
-#define AS_NS(diff)                                                                                \
-  ((unsigned long long)std::chrono::duration_cast<std::chrono::nanoseconds>(diff).count())
+  auto difference_in_nanoseconds = [](auto start, auto end) {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+  };
 
   EMM::UninstallExceptionHandler();
-  JitInterface::SetJit(nullptr);
 
-  printf("page fault timing:\n");
-  printf("start->HandleFault     %llu ns\n", AS_NS(pfjit.m_pre_unprotect_time - start));
-  printf("UnWriteProtectMemory   %llu ns\n",
-         AS_NS(pfjit.m_post_unprotect_time - pfjit.m_pre_unprotect_time));
-  printf("HandleFault->end       %llu ns\n", AS_NS(end - pfjit.m_post_unprotect_time));
-  printf("total                  %llu ns\n", AS_NS(end - start));
+  fmt::print("page fault timing:\n");
+  fmt::print("start->HandleFault     {} ns\n",
+             difference_in_nanoseconds(start, pfjit.m_pre_unprotect_time));
+  fmt::print("UnWriteProtectMemory   {} ns\n",
+             difference_in_nanoseconds(pfjit.m_pre_unprotect_time, pfjit.m_post_unprotect_time));
+  fmt::print("HandleFault->end       {} ns\n",
+             difference_in_nanoseconds(pfjit.m_post_unprotect_time, end));
+  fmt::print("total                  {} ns\n", difference_in_nanoseconds(start, end));
+
+  system.GetJitInterface().SetJit(nullptr);
 }

@@ -38,6 +38,7 @@
     <ClCompile Include="Python\Modules\utilmodule.cpp">
       <Filter>Python\Modules</Filter>
     </ClCompile>
+    <ClCompile Include="ScriptList.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ScriptingEngine.h" />
@@ -86,12 +87,13 @@
     <ClInclude Include="Python\Modules\controllermodule.h">
       <Filter>Python\Modules</Filter>
     </ClInclude>
-    <ClCompile Include="Python\Modules\registersmodule.h">
+    <ClInclude Include="Python\Modules\registersmodule.h">
       <Filter>Python\Modules</Filter>
     </ClCompile>
     <ClInclude Include="Python\Modules\utilmodule.h">
       <Filter>Python\Modules</Filter>
     </ClInclude>
+    <ClInclude Include="ScriptList.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Python">

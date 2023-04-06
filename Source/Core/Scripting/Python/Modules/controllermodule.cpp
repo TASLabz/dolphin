@@ -16,6 +16,7 @@ struct ControllerModuleState
   API::GCManip* gc_manip;
   API::WiiButtonsManip* wii_buttons_manip;
   API::WiiIRManip* wii_ir_manip;
+  API::NunchuckButtonsManip* nunchuck_buttons_manip;
 };
 
 static PyObject* GCPadStatusToPyDict(GCPadStatus status) {
@@ -91,7 +92,7 @@ static GCPadStatus GCPadStatusFromPyDict(PyObject* dict) {
   u8 analog_b = py_analog_b == nullptr ? 0 : PyLong_AsUnsignedLong(py_analog_b);
 
   PyObject* py_connected = PyDict_GetItemString(dict, "Connected");
-  bool connected = py_connected != nullptr && PyObject_IsTrue(py_connected);
+  bool connected = py_connected == nullptr || PyObject_IsTrue(py_connected);
 
   GCPadStatus status;
   status.button = (button_left ? PAD_BUTTON_LEFT : 0) | (button_right ? PAD_BUTTON_RIGHT : 0) |
@@ -156,6 +157,34 @@ static WiimoteCommon::ButtonData WiiButtonDataFromPyDict(PyObject* dict) {
   return status;
 }
 
+static PyObject* NunchuckButtonDataToPyDict(WiimoteEmu::Nunchuk::DataFormat status)
+{
+  return Py_BuildValue("{s:O,s:O,s:B,s:B}", "C",
+                       status.GetButtons() & WiimoteEmu::Nunchuk::BUTTON_C ? Py_True : Py_False,
+                       "Z",
+                       status.GetButtons() & WiimoteEmu::Nunchuk::BUTTON_Z ? Py_True : Py_False,
+                       "StickX", status.GetStick().value.x, "StickY", status.GetStick().value.y);
+}
+
+static WiimoteEmu::Nunchuk::DataFormat NunchuckButtonDataFromPyDict(PyObject* dict)
+{
+  WiimoteEmu::Nunchuk::DataFormat status;
+  PyObject* py_c = PyDict_GetItemString(dict, "C");
+  PyObject* py_z = PyDict_GetItemString(dict, "C");
+  PyObject* py_stickx = PyDict_GetItemString(dict, "StickX");
+  PyObject* py_sticky = PyDict_GetItemString(dict, "StickY");
+  u8 buttons = 0;
+  if (py_c != nullptr && PyObject_IsTrue(py_c))
+    buttons |= WiimoteEmu::Nunchuk::BUTTON_C;
+  if (py_z != nullptr && PyObject_IsTrue(py_z))
+    buttons |= WiimoteEmu::Nunchuk::BUTTON_Z;
+  status.SetButtons(buttons);
+  status.jx = py_stickx == nullptr ? 128 : PyLong_AsUnsignedLong(py_stickx);
+  status.jy = py_sticky == nullptr ? 128 : PyLong_AsUnsignedLong(py_sticky);
+
+  return status;
+}
+
 static PyObject* get_gc_buttons(PyObject* module, PyObject* args)
 {
   auto controller_id_opt = Py::ParseTuple<int>(args);
@@ -216,15 +245,40 @@ static PyObject* set_wii_ircamera_transform(PyObject* module, PyObject* args)
   Py_RETURN_NONE;
 }
 
+static PyObject* get_nunchuck_buttons(PyObject* module, PyObject* args)
+{
+  auto controller_id_opt = Py::ParseTuple<int>(args);
+  if (!controller_id_opt.has_value())
+    return nullptr;
+  int controller_id = std::get<0>(controller_id_opt.value());
+  ControllerModuleState* state = Py::GetState<ControllerModuleState>(module);
+  WiimoteEmu::Nunchuk::DataFormat status = state->nunchuck_buttons_manip->Get(controller_id);
+  return NunchuckButtonDataToPyDict(status);
+}
+
+static PyObject* set_nunchuck_buttons(PyObject* module, PyObject* args)
+{
+  int controller_id;
+  PyObject* dict;
+  if (!PyArg_ParseTuple(args, "iO!", &controller_id, &PyDict_Type, &dict))
+    return nullptr;
+  WiimoteEmu::Nunchuk::DataFormat status = NunchuckButtonDataFromPyDict(dict);
+  ControllerModuleState* state = Py::GetState<ControllerModuleState>(module);
+  state->nunchuck_buttons_manip->Set(status, controller_id, API::ClearOn::NextFrame);
+  Py_RETURN_NONE;
+}
+
 static void setup_controller_module(PyObject* module, ControllerModuleState* state)
 {
   state->gc_manip = PyScriptingBackend::GetCurrent()->GetGCManip();
   state->wii_buttons_manip = PyScriptingBackend::GetCurrent()->GetWiiButtonsManip();
   state->wii_ir_manip = PyScriptingBackend::GetCurrent()->GetWiiIRManip();
+  state->nunchuck_buttons_manip = PyScriptingBackend::GetCurrent()->GetNunchuckButtonsManip();
   PyScriptingBackend::GetCurrent()->AddCleanupFunc([state] {
     state->gc_manip->Clear();
     state->wii_buttons_manip->Clear();
     state->wii_ir_manip->Clear();
+    state->nunchuck_buttons_manip->Clear();
   });
 }
 
@@ -236,6 +290,9 @@ PyMODINIT_FUNC PyInit_controller()
       {"get_wii_buttons", get_wii_buttons, METH_VARARGS, ""},
       {"set_wii_buttons", set_wii_buttons, METH_VARARGS, ""},
       {"set_wii_ircamera_transform", set_wii_ircamera_transform, METH_VARARGS, ""},
+      {"get_nunchuck_buttons", get_nunchuck_buttons, METH_VARARGS, ""},
+      {"set_nunchuck_buttons", set_nunchuck_buttons, METH_VARARGS, ""},
+      
       {nullptr, nullptr, 0, nullptr}  // Sentinel
   };
   static PyModuleDef module_def =

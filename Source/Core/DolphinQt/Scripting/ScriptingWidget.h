@@ -14,10 +14,11 @@ class ScriptingWidget : public QDockWidget
   Q_OBJECT
 public:
   ScriptingWidget(QWidget* parent = nullptr);
+  void PopulateScripts();
   void AddNewScript();
-  void ReloadSelectedScript();
+  void RestartSelectedScript();
   void RemoveSelectedScript();
-  void AddScript(std::string filename);
+  void AddScript(std::string filename, bool enabled = false);
 
 private:
   ScriptsListModel* m_scripts_model;

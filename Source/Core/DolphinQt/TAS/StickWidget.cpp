@@ -38,6 +38,13 @@ void StickWidget::SetY(u16 y)
   update();
 }
 
+void StickWidget::SetAxisLines(bool toggle)
+{
+  m_axis_lines = toggle;
+
+  update();
+}
+
 void StickWidget::paintEvent(QPaintEvent* event)
 {
   QPainter painter(this);
@@ -53,8 +60,11 @@ void StickWidget::paintEvent(QPaintEvent* event)
   painter.setBrush(Qt::white);
   painter.drawEllipse(PADDING, PADDING, diameter, diameter);
 
-  painter.drawLine(PADDING, PADDING + diameter / 2, PADDING + diameter, PADDING + diameter / 2);
-  painter.drawLine(PADDING + diameter / 2, PADDING, PADDING + diameter / 2, PADDING + diameter);
+  if (m_axis_lines)
+  {
+    painter.drawLine(PADDING, PADDING + diameter / 2, PADDING + diameter, PADDING + diameter / 2);
+    painter.drawLine(PADDING + diameter / 2, PADDING, PADDING + diameter / 2, PADDING + diameter);
+  }
 
   // convert from value space to widget space
   u16 x = PADDING + ((m_x * diameter) / m_max_x);
@@ -82,6 +92,9 @@ void StickWidget::mouseMoveEvent(QMouseEvent* event)
 
 void StickWidget::handleMouseEvent(QMouseEvent* event)
 {
+  u16 prev_x = m_x;
+  u16 prev_y = m_y;
+
   if (event->button() == Qt::RightButton)
   {
     m_x = std::round(m_max_x / 2.);
@@ -97,7 +110,18 @@ void StickWidget::handleMouseEvent(QMouseEvent* event)
     m_y = std::max(0, std::min(static_cast<int>(m_max_y), new_y));
   }
 
-  emit ChangedX(m_x);
-  emit ChangedY(m_y);
-  update();
+  bool changed = false;
+  if (prev_x != m_x)
+  {
+    emit ChangedX(m_x);
+    changed = true;
+  }
+  if (prev_y != m_y)
+  {
+    emit ChangedY(m_y);
+    changed = true;
+  }
+
+  if (changed)
+    update();
 }

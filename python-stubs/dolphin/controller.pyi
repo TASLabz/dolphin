@@ -1,8 +1,8 @@
 """
 Module for programmatic inputs.
 
-Currently, only for GameCube, Wiimote buttons and Wii IR (pointing).
-No acceleration or extensions data yet.
+Currently, only for GameCube, Wiimote, Nunchuck buttons and Wii IR (pointing).
+No acceleration or other extensions data yet.
 """
 from typing import TypedDict
 
@@ -43,6 +43,12 @@ class WiiInputs(TypedDict):
     A: bool
     B: bool
     Home: bool
+    
+class NunchuckInputs(TypedDict):
+    C: bool
+    Z: bool
+    StickX: int  # 0-255, 128 is neutral
+    StickY: int  # 0-255, 128 is neutral
 
 
 def get_gc_buttons(controller_id: int, /) -> GCInputs:
@@ -98,4 +104,21 @@ def set_wii_ircamera_transform(controller_id: int,
     :param pitch: pitch of the simulated IR camera in radians.
     :param yaw: yaw of the simulated IR camera in radians.
     :param roll: roll of the simulated IR camera in radians.
+    """
+
+
+def get_nunchuck_buttons(controller_id: int, /) -> NunchuckInputs:
+    """
+    Retrieves the current input map for the given Nunchuck extension.
+    :param controller_id: 0-based index of the controller
+    :return: dictionary describing the current input map
+    """
+
+
+def set_nunchuck_buttons(controller_id: int, inputs: NunchuckInputs, /):
+    """
+    Sets the current input map for the given Nunchuck extension.
+    The override will hold for the current frame.
+    :param controller_id: 0-based index of the controller
+    :param inputs: dictionary describing the input map
     """

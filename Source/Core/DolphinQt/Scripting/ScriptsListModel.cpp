@@ -4,80 +4,114 @@
 
 #include "ScriptsListModel.h"
 
-int ScriptsListModel::rowCount(const QModelIndex &parent) const
+#include "Core/Core.h"
+
+#include "Scripting/ScriptList.h"
+
+int ScriptsListModel::rowCount(const QModelIndex& parent) const
 {
-  return static_cast<int>(m_scripts.size());
+  return static_cast<int>(Scripts::g_scripts.size());
 }
 
 int ScriptsListModel::columnCount(const QModelIndex& parent) const
 {
-  return 2;
+  return 1;
+}
+
+Qt::ItemFlags ScriptsListModel::flags(const QModelIndex& index) const
+{
+  Qt::ItemFlags result = QAbstractItemModel::flags(index);
+  if (index.column() == 0)
+    result |= Qt::ItemIsUserCheckable;
+
+  return result;
 }
 
 QVariant ScriptsListModel::data(const QModelIndex& index, int role) const
 {
-  if (!index.isValid() || (size_t)index.row() >= m_scripts.size())
+  if (!index.isValid() || (size_t)index.row() >= Scripts::g_scripts.size())
     return QVariant();
 
-  if (role == Qt::DisplayRole || role == Qt::EditRole)
+  switch (role)
+  {
+  case Qt::DisplayRole:
+  case Qt::EditRole:
   {
     if (index.column() == 0)
-      return QVariant();
-    else if (index.column() == 1)
-      return QVariant(QString::fromStdString(m_scripts[index.row()].filename));
-  }
-  return QVariant();
-}
-
-QVariant ScriptsListModel::headerData(int section, Qt::Orientation orientation, int role) const
-{
-  if (role != Qt::DisplayRole)
+      return QVariant(
+          QString::fromStdString(Scripts::g_scripts[index.row()].path.filename().string()));
     return QVariant();
-
-  if (orientation == Qt::Horizontal)
-  {
-    if (section == 0)
-      // first column should get checkboxes for pausing scripts
-      return QStringLiteral("");
-    if (section == 1)
-      return tr("filename");
   }
-  return QVariant();
+  case Qt::CheckStateRole:
+  {
+    if (index.column() == 0)
+      return Scripts::g_scripts[index.row()].enabled ? Qt::Checked : Qt::Unchecked;
+    return QVariant();
+  }
+  default:
+    return QVariant();
+  }
 }
 
-bool ScriptsListModel::insertRows(int position, int rows, const QModelIndex& parent)
+bool ScriptsListModel::setData(const QModelIndex& index, const QVariant& value, int role)
 {
-  beginInsertRows(QModelIndex(), position, position+rows-1);
+  if (!index.isValid() || index.column() > 0)
+    return false;
+
+  switch (role)
+  {
+  case Qt::CheckStateRole:
+  {
+    Scripts::g_scripts[index.row()].enabled =
+        ((Qt::CheckState)value.toUInt() == Qt::Checked) ? true : false;
+    if (Scripts::g_scripts[index.row()].enabled)
+    {
+      Scripting::ScriptingBackend* backend = nullptr;
+      if (Scripts::g_scripts_started)
+        backend = new Scripting::ScriptingBackend(Scripts::g_scripts[index.row()].path);
+      Scripts::g_scripts[index.row()].backend = backend;
+    }
+    else
+    {
+      delete Scripts::g_scripts[index.row()].backend;
+      Scripts::g_scripts[index.row()].backend = nullptr;
+    }
+    return true;
+  }
+  default:
+    return false;
+  }
+}
+
+void ScriptsListModel::Add(std::filesystem::path path, bool enabled /* = false */)
+{
+  beginInsertRows(QModelIndex(), this->rowCount(), this->rowCount());
+  Scripting::ScriptingBackend* backend = nullptr;
+  if (enabled && Scripts::g_scripts_started)
+    backend = new Scripting::ScriptingBackend(path);
+  Scripts::g_scripts.emplace_back(Scripts::Script{path, backend, enabled});
   endInsertRows();
-  return true;
 }
 
-bool ScriptsListModel::removeRows(int position, int rows, const QModelIndex& parent)
+void ScriptsListModel::Restart(int index)
 {
-  beginRemoveRows(QModelIndex(), position, position+rows-1);
-  endRemoveRows();
-  return true;
-}
+  // If script was not enabled, then we don't need to do anything
+  if (!Scripts::g_scripts.at(index).enabled)
+    return;
 
-void ScriptsListModel::Add(std::string filename)
-{
-  m_scripts.emplace_back(Script{filename, Scripting::ScriptingBackend(filename)});
-  this->insertRow(this->rowCount());
-}
+  std::filesystem::path path = Scripts::g_scripts.at(index).path;
+  delete Scripts::g_scripts.at(index).backend;
 
-void ScriptsListModel::Reload(int index)
-{
-  std::string filename = m_scripts.at(index).filename;
-  // need to first explicitly erase instead of simply replacing the existing backend,
-  // because otherwise there would be 2 backends for a short period of time,
-  // which is not supported when running in subinterpreter-less mode.
-  m_scripts.erase(m_scripts.begin() + index);
-  m_scripts.insert(m_scripts.begin() + index,
-                   Script{filename, Scripting::ScriptingBackend(filename)});
+  Scripting::ScriptingBackend* backend = nullptr;
+  if (Scripts::g_scripts_started)
+    backend = new Scripting::ScriptingBackend(path);
+
+  Scripts::g_scripts.at(index) = Scripts::Script{path, backend, true};
 }
 
 void ScriptsListModel::Remove(int index)
 {
-  m_scripts.erase(m_scripts.begin() + index);
-  this->removeRow(index);
+  beginRemoveRows(QModelIndex(), index, index);
+  Scripts::g_scripts.erase(Scripts::g_scripts.begin() + index);
+  endRemoveRows();
 }

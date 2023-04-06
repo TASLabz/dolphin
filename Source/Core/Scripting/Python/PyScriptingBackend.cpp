@@ -34,7 +34,9 @@ static PyThreadState* InitMainPythonInterpreter()
       UTF8ToWString(File::GetCurrentDir()) + L";" +
       UTF8ToWString(File::GetExeDirectory()) + L"/python-embed/python38.zip;" +
       UTF8ToWString(File::GetExeDirectory()) + L"/python-embed;" +
-      UTF8ToWString(File::GetExeDirectory());
+      UTF8ToWString(File::GetExeDirectory()) + L";" +
+      UTF8ToWString(File::GetUserPath(D_MODULES_IDX)) + L";" +
+      UTF8ToWString(File::GetUserPath(D_SCRIPTS_IDX)) + L";";
 #endif
 
   if (PyImport_AppendInittab("dolio_stdout", PyInit_dolio_stdout) == -1)
@@ -64,7 +66,13 @@ static PyThreadState* InitMainPythonInterpreter()
   Py_SetPath(python_path.c_str());
 #endif
   INFO_LOG_FMT(SCRIPTING, "Initializing embedded python... {}", Py_GetVersion());
-  Py_InitializeEx(0);
+  std::string scriptPath = File::GetUserPath(D_SCRIPTS_IDX);
+  PyConfig config;
+  PyConfig_InitPythonConfig(&config);
+
+  PyConfig_SetString(&config, &config.pythonpath_env, std::wstring(scriptPath.begin(), scriptPath.end()).c_str());
+  
+  Py_InitializeFromConfig(&config);
 
   // Starting with Python 3.7 Py_Initialize* also initializes the GIL in a locked state.
   // This might be the same issue: https://bugs.python.org/issue38680
@@ -115,9 +123,9 @@ static void ShutdownMainPythonInterpreter()
 PyScriptingBackend::PyScriptingBackend(std::filesystem::path script_filepath,
                                        API::EventHub& event_hub, API::Gui& gui,
                                        API::GCManip& gc_manip, API::WiiButtonsManip& wii_buttons_manip,
-                                       API::WiiIRManip& wii_ir_manip)
-    : m_event_hub(event_hub), m_gui(gui), m_gc_manip(gc_manip), m_wii_buttons_manip(wii_buttons_manip),
-      m_wii_ir_manip(wii_ir_manip)
+                                       API::WiiIRManip& wii_ir_manip, API::NunchuckButtonsManip& nunchuck_buttons_manip)
+    : m_event_hub(event_hub), m_gui(gui), m_gc_manip(gc_manip), m_wii_buttons_manip(wii_buttons_manip), m_wii_ir_manip(wii_ir_manip),
+      m_nunchuck_buttons_manip(nunchuck_buttons_manip)
 {
   std::lock_guard lock{s_bookkeeping_lock};
   if (s_instances.empty())
@@ -266,6 +274,11 @@ API::WiiButtonsManip* PyScriptingBackend::GetWiiButtonsManip()
 API::WiiIRManip* PyScriptingBackend::GetWiiIRManip()
 {
   return &m_wii_ir_manip;
+}
+
+API::NunchuckButtonsManip* PyScriptingBackend::GetNunchuckButtonsManip()
+{
+  return &m_nunchuck_buttons_manip;
 }
 
 void PyScriptingBackend::AddCleanupFunc(std::function<void()> cleanup_func)

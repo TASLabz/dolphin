@@ -20,7 +20,9 @@ class PyScriptingBackend
 {
 public:
   PyScriptingBackend(std::filesystem::path script_filepath, API::EventHub& event_hub, API::Gui& gui,
-                     API::GCManip& gc_manip, API::WiiButtonsManip& wii_buttons_manip, API::WiiIRManip& wii_ir_manip);
+                     API::GCManip& gc_manip, API::WiiButtonsManip& wii_buttons_manip,
+                     API::WiiIRManip& wii_ir_manip,
+                     API::NunchuckButtonsManip& nunchuck_buttons_manip);
   ~PyScriptingBackend();
   static PyScriptingBackend* GetCurrent();
   API::EventHub* GetEventHub();
@@ -28,6 +30,7 @@ public:
   API::GCManip* GetGCManip();
   API::WiiButtonsManip* GetWiiButtonsManip();
   API::WiiIRManip* GetWiiIRManip();
+  API::NunchuckButtonsManip* GetNunchuckButtonsManip();
   void AddCleanupFunc(std::function<void()> cleanup_func);
 
   // this class somewhat is a wrapper around a python interpreter state,
@@ -50,6 +53,7 @@ private:
   API::GCManip& m_gc_manip;
   API::WiiButtonsManip& m_wii_buttons_manip;
   API::WiiIRManip& m_wii_ir_manip;
+  API::NunchuckButtonsManip& m_nunchuck_buttons_manip;
   std::vector<std::function<void()>> m_cleanups;
 };
 

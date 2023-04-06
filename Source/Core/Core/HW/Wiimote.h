@@ -29,6 +29,7 @@ enum class TurntableGroup;
 enum class UDrawTabletGroup;
 enum class DrawsomeTabletGroup;
 enum class TaTaConGroup;
+enum class ShinkansenGroup;
 }  // namespace WiimoteEmu
 
 enum
@@ -98,6 +99,7 @@ bool NetPlay_GetButtonPress(int wiimote, bool pressed);
 
 WiimoteCommon::ButtonData GetButtonData(int wiimote_num);
 
+ControllerEmu::ControlGroup* GetShinkansenGroup(int number, WiimoteEmu::ShinkansenGroup group);
 }  // namespace Wiimote
 
 namespace WiimoteReal

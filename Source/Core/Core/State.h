@@ -53,6 +53,7 @@ u64 GetUnixTimeOfSlot(int slot);
 void Save(int slot, bool wait = false);
 void Load(int slot);
 
+void SaveFile(const std::string& filename, bool wait = false);
 void SaveAs(const std::string& filename, bool wait = false);
 void LoadFile(const std::string& filename);
 void LoadAs(const std::string& filename);
@@ -64,9 +65,6 @@ void LoadLastSaved(int i = 1);
 void SaveFirstSaved();
 void UndoSaveState();
 void UndoLoadState();
-
-// wait until previously scheduled savestate event (if any) is done
-void Flush();
 
 // for calling back into UI code without introducing a dependency on it in core
 using AfterLoadCallbackFunc = std::function<void()>;

@@ -76,6 +76,8 @@ add_executable(dolphin-emu
   Config/CheatWarningWidget.h
   Config/CommonControllersWidget.cpp
   Config/CommonControllersWidget.h
+  Config/ControllerInterface/ControllerInterfaceWindow.cpp
+  Config/ControllerInterface/ControllerInterfaceWindow.h
   Config/ControllerInterface/DualShockUDPClientAddServerDialog.cpp
   Config/ControllerInterface/DualShockUDPClientAddServerDialog.h
   Config/ControllerInterface/DualShockUDPClientWidget.cpp
@@ -100,6 +102,8 @@ add_executable(dolphin-emu
   Config/GameConfigHighlighter.h
   Config/GameConfigWidget.cpp
   Config/GameConfigWidget.h
+  Config/GamecubeControllersWidget.cpp
+  Config/GamecubeControllersWidget.h
   Config/GeckoCodeWidget.cpp
   Config/GeckoCodeWidget.h
   Config/Graphics/AdvancedWidget.cpp
@@ -127,8 +131,10 @@ add_executable(dolphin-emu
   Config/Graphics/HacksWidget.h
   Config/Graphics/PostProcessingConfigWindow.cpp
   Config/Graphics/PostProcessingConfigWindow.h
-  Config/Graphics/SoftwareRendererWidget.cpp
-  Config/Graphics/SoftwareRendererWidget.h
+  Config/GraphicsModListWidget.cpp
+  Config/GraphicsModListWidget.h
+  Config/GraphicsModWarningWidget.cpp
+  Config/GraphicsModWarningWidget.h
   Config/InfoWidget.cpp
   Config/InfoWidget.h
   Config/LogConfigWidget.cpp
@@ -217,6 +223,10 @@ add_executable(dolphin-emu
   Config/VerifyWidget.h
   Config/WiimoteControllersWidget.cpp
   Config/WiimoteControllersWidget.h
+  ConvertDialog.cpp
+  ConvertDialog.h
+  Debugger/BreakpointDialog.cpp
+  Debugger/BreakpointDialog.h
   Debugger/BreakpointWidget.cpp
   Debugger/BreakpointWidget.h
   Debugger/CodeDiffDialog.cpp
@@ -233,8 +243,6 @@ add_executable(dolphin-emu
   Debugger/MemoryWidget.h
   Debugger/NetworkWidget.cpp
   Debugger/NetworkWidget.h
-  Debugger/NewBreakpointDialog.cpp
-  Debugger/NewBreakpointDialog.h
   Debugger/PatchInstructionDialog.cpp
   Debugger/PatchInstructionDialog.h
   Debugger/RegisterColumn.cpp
@@ -245,6 +253,14 @@ add_executable(dolphin-emu
   Debugger/ThreadWidget.h
   Debugger/WatchWidget.cpp
   Debugger/WatchWidget.h
+  DiscordHandler.cpp
+  DiscordHandler.h
+  DiscordJoinRequestDialog.cpp
+  DiscordJoinRequestDialog.h
+  FIFO/FIFOAnalyzer.cpp
+  FIFO/FIFOAnalyzer.h
+  FIFO/FIFOPlayerWindow.cpp
+  FIFO/FIFOPlayerWindow.h
   GameList/GameList.cpp
   GameList/GameList.h
   GameList/GameListModel.cpp
@@ -259,14 +275,23 @@ add_executable(dolphin-emu
   GCMemcardCreateNewDialog.h
   GCMemcardManager.cpp
   GCMemcardManager.h
+  Host.cpp
+  Host.h
+  HotkeyScheduler.cpp
+  HotkeyScheduler.h
+  Main.cpp
+  MainWindow.cpp
+  MainWindow.h
+  MenuBar.cpp
+  MenuBar.h
   QtUtils/BlockUserInputFilter.cpp
   QtUtils/BlockUserInputFilter.h
   NetPlay/ChunkedProgressDialog.cpp
   NetPlay/ChunkedProgressDialog.h
+  NetPlay/GameDigestDialog.cpp
+  NetPlay/GameDigestDialog.h
   NetPlay/GameListDialog.cpp
   NetPlay/GameListDialog.h
-  NetPlay/MD5Dialog.cpp
-  NetPlay/MD5Dialog.h
   NetPlay/NetPlayBrowser.cpp
   NetPlay/NetPlayBrowser.h
   NetPlay/NetPlayDialog.cpp
@@ -275,6 +300,14 @@ add_executable(dolphin-emu
   NetPlay/NetPlaySetupDialog.h
   NetPlay/PadMappingDialog.cpp
   NetPlay/PadMappingDialog.h
+  NANDRepairDialog.cpp
+  NANDRepairDialog.h
+  NKitWarningDialog.cpp
+  NKitWarningDialog.h
+  QtUtils/AspectRatioWidget.cpp
+  QtUtils/AspectRatioWidget.h
+  QtUtils/BlockUserInputFilter.cpp
+  QtUtils/BlockUserInputFilter.h
   QtUtils/DolphinFileDialog.cpp
   QtUtils/DolphinFileDialog.h
   QtUtils/DoubleClickEventFilter.cpp
@@ -285,8 +318,12 @@ add_executable(dolphin-emu
   QtUtils/FileOpenEventFilter.h
   QtUtils/FlowLayout.cpp
   QtUtils/FlowLayout.h
+  QtUtils/ImageConverter.cpp
+  QtUtils/ImageConverter.h
   QtUtils/ModalMessageBox.cpp
   QtUtils/ModalMessageBox.h
+  QtUtils/NonDefaultQPushButton.cpp
+  QtUtils/NonDefaultQPushButton.h
   QtUtils/ParallelProgressDialog.h
   QtUtils/PartiallyClosableTabWidget.cpp
   QtUtils/PartiallyClosableTabWidget.h
@@ -301,14 +338,22 @@ add_executable(dolphin-emu
   QtUtils/WinIconHelper.h
   QtUtils/WrapInScrollArea.cpp
   QtUtils/WrapInScrollArea.h
+  RenderWidget.cpp
+  RenderWidget.h
   QtUtils/AspectRatioWidget.cpp
   QtUtils/AspectRatioWidget.h
   QtUtils/NonDefaultQPushButton.cpp
   QtUtils/NonDefaultQPushButton.h
   ResourcePackManager.cpp
   ResourcePackManager.h
+  Resources.cpp
+  Resources.h
   RiivolutionBootWidget.cpp
   RiivolutionBootWidget.h
+  SearchBar.cpp
+  SearchBar.h
+  Settings.cpp
+  Settings.h
   Settings/AdvancedPane.cpp
   Settings/AdvancedPane.h
   Settings/AudioPane.cpp
@@ -327,22 +372,42 @@ add_executable(dolphin-emu
   Settings/WiiPane.h
   Settings/USBDeviceAddToWhitelistDialog.cpp
   Settings/USBDeviceAddToWhitelistDialog.h
+  Settings/WiiPane.cpp
+  Settings/WiiPane.h
+  SkylanderPortal/SkylanderPortalWindow.cpp
+  SkylanderPortal/SkylanderPortalWindow.h
   TAS/GCTASInputWindow.cpp
   TAS/GCTASInputWindow.h
   TAS/WiiTASInputWindow.cpp
   TAS/WiiTASInputWindow.h
+  TAS/GBATASInputWindow.cpp
+  TAS/GBATASInputWindow.h
+  TAS/IRWidget.cpp
+  TAS/IRWidget.h
+  TAS/StickWidget.cpp
+  TAS/StickWidget.h
   TAS/TASCheckBox.cpp
   TAS/TASCheckBox.h
+  TAS/TASControlState.cpp
+  TAS/TASControlState.h
   TAS/TASInputWindow.cpp
   TAS/TASInputWindow.h
   TAS/TASSlider.cpp
   TAS/TASSlider.h
-  TAS/StickWidget.cpp
-  TAS/StickWidget.h
-  TAS/IRWidget.cpp
-  TAS/IRWidget.h
+  TAS/TASStickBox.cpp
+  TAS/TASStickBox.h
+  TAS/TASSpinBox.cpp
+  TAS/TASSpinBox.h
+  TAS/WiiTASInputWindow.cpp
+  TAS/WiiTASInputWindow.h
+  ToolBar.cpp
+  ToolBar.h
+  Translation.cpp
+  Translation.h
   Updater.cpp
   Updater.h
+  WiiUpdate.cpp
+  WiiUpdate.h
   Scripting/ScriptingWidget.cpp
   Scripting/ScriptingWidget.h
   Scripting/ScriptsListModel.cpp
@@ -375,6 +440,7 @@ PRIVATE
   Qt${QT_VERSION_MAJOR}::Widgets
   uicommon
   imgui
+  implot
 )
 
 if (WIN32)
@@ -395,6 +461,9 @@ if (MSVC)
   target_compile_options(dolphin-emu PRIVATE "${qtGui}")
   target_compile_options(dolphin-emu PRIVATE "${qtGuiPriv}")
   target_compile_options(dolphin-emu PRIVATE "${qtWidgets}")
+
+  # Qt 6.3.0 headers use std::aligned_storage instead of alignas
+  target_compile_definitions(dolphin-emu PRIVATE _SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING)
 
   if ("${QT_VERSION_MAJOR}" GREATER_EQUAL 6)
     # Qt6 requires RTTI

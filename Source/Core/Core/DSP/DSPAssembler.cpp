@@ -584,7 +584,6 @@ bool DSPAssembler::VerifyParams(const DSPOPCTemplate* opc, param_t* par, size_t 
             }
           }
           break;
-
         case P_ACCL:
           if ((int)par[i].val < DSP_REG_ACL0 || (int)par[i].val > DSP_REG_ACL1)
           {
@@ -601,6 +600,8 @@ bool DSPAssembler::VerifyParams(const DSPOPCTemplate* opc, param_t* par, size_t 
               ShowError(AssemblerError::WrongParameterExpectedAccumulator);
             }
           }
+          break;
+        default:
           break;
         }
         continue;
@@ -911,7 +912,10 @@ bool DSPAssembler::AssemblePass(const std::string& text, int pass)
         }
       }
       if (pass == 1)
-        m_labels.RegisterLabel(label, lval);
+      {
+        if (!m_labels.RegisterLabel(label, lval))
+          ShowError(AssemblerError::LabelAlreadyExists);
+      }
     }
 
     if (opcode == nullptr)

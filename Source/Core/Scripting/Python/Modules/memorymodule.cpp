@@ -6,9 +6,11 @@
 
 #include "Core/API/Memory.h"
 #include "Core/HW/Memmap.h"
+#include "Core/System.h"
 
 #include "Scripting/Python/Utils/module.h"
 #include "Scripting/Python/Utils/as_py_func.h"
+#include "Core/Core.h"
 
 namespace PyScripting
 {
@@ -24,7 +26,7 @@ static PyObject* Read(PyObject* self, PyObject* args)
 {
   // If Memory wasn't static, you'd get the memory instance from the state:
   //MemoryModuleState* state = Py::GetState<MemoryModuleState>();
-  if (!Memory::IsInitialized())
+  if (!Core::System::GetInstance().GetMemory().IsInitialized())
   {
     PyErr_SetString(PyExc_ValueError, "memory is not initialized");
     return nullptr;
@@ -33,7 +35,8 @@ static PyObject* Read(PyObject* self, PyObject* args)
   if (!args_opt.has_value())
     return nullptr;
   u32 addr = std::get<0>(args_opt.value());
-  PyObject* result = Py::BuildValue(TRead(addr));
+  Core::CPUThreadGuard guard(Core::System::GetInstance());
+  PyObject* result = Py::BuildValue(TRead(guard, addr));
   return result;
 }
 
@@ -42,7 +45,7 @@ static PyObject* Write(PyObject* self, PyObject* args)
 {
   // If Memory wasn't static, you'd get the memory instance from the state:
   //MemoryModuleState* state = Py::GetState<MemoryModuleState>();
-  if (!Memory::IsInitialized())
+  if (!Core::System::GetInstance().GetMemory().IsInitialized())
   {
     PyErr_SetString(PyExc_ValueError, "memory is not initialized");
     return nullptr;
@@ -52,7 +55,8 @@ static PyObject* Write(PyObject* self, PyObject* args)
     return nullptr;
   u32 addr = std::get<0>(args_opt.value());
   T value = std::get<1>(args_opt.value());
-  TWrite(addr, value);
+  Core::CPUThreadGuard guard(Core::System::GetInstance());
+  TWrite(guard, addr, value);
   Py_RETURN_NONE;
 }
 
@@ -106,6 +110,7 @@ PyMODINIT_FUNC PyInit_memory()
       {"read_f32", Read<API::Memory::Read_F32>, METH_VARARGS, ""},
       {"read_f64", Read<API::Memory::Read_F64>, METH_VARARGS, ""},
 
+      {"invalidate_icache", Write<API::Memory::InvalidateICache, u32>, METH_VARARGS, ""},
       {"write_u8", Write<API::Memory::Write_U8, u8>, METH_VARARGS, ""},
       {"write_u16", Write<API::Memory::Write_U16, u16>, METH_VARARGS, ""},
       {"write_u32", Write<API::Memory::Write_U32, u32>, METH_VARARGS, ""},

@@ -49,10 +49,9 @@ private:
   GraphicsBool* m_enable_fullscreen;
 
   // Options
-  GraphicsBool* m_show_fps;
   GraphicsBool* m_show_ping;
-  GraphicsBool* m_log_render_time;
   GraphicsBool* m_autoadjust_window_size;
+  GraphicsBool* m_lock_window_to_right;
   GraphicsBool* m_show_messages;
   GraphicsBool* m_render_main_window;
   std::array<GraphicsRadioInt*, 4> m_shader_compilation_mode{};
