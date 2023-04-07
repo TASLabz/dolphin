@@ -89,7 +89,7 @@
     </ClInclude>
     <ClInclude Include="Python\Modules\registersmodule.h">
       <Filter>Python\Modules</Filter>
-    </ClCompile>
+    </ClInclude>
     <ClInclude Include="Python\Modules\utilmodule.h">
       <Filter>Python\Modules</Filter>
     </ClInclude>
