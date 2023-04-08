@@ -15,6 +15,11 @@
     <Import Project="$(VSPropsDir)ClDisableAllWarnings.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(ExternalsDir)nativefiledialog-extended\src\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src/nfd_win.cpp" />
   </ItemGroup>

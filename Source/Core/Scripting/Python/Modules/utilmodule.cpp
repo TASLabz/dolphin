@@ -64,7 +64,8 @@ static PyObject* is_audiodumping(PyObject* module, PyObject* args)
 static PyObject* save_screenshot(PyObject* module, PyObject* args, PyObject* kwargs)
 {
   char* filename = nullptr;
-  static char* kwlist[] = {const_cast<char*>("filename"), NULL};
+  char* temp = const_cast<char*>("filename");
+  static char* kwlist[] = {temp, NULL};
 
   if(!PyArg_ParseTupleAndKeywords(args, kwargs,"|s", kwlist, &filename))
   	return nullptr;
@@ -88,7 +89,7 @@ static PyObject* open_file(PyObject* module, PyObject* args)
   nfdresult_t result = NFD_OpenDialog(&outPath, filterItem, 1, NULL);
 
   if(result != NFD_OKAY)
-  	PY_RETURN_NONE;
+  	Py_RETURN_NONE;
 
   filePath = outPath;
  
