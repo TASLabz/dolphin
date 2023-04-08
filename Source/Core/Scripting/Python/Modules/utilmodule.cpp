@@ -70,7 +70,7 @@ static PyObject* save_screenshot(PyObject* module, PyObject* args, PyObject* kwa
   if(!PyArg_ParseTupleAndKeywords(args, kwargs,"|s", kwlist, &filename))
   	return nullptr;
 
-  if(filename != nullptr)
+  if(filename)
   	Core::SaveScreenShot(filename);
   else
   	Core::SaveScreenShot();
