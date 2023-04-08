@@ -4,14 +4,15 @@
 # N:    pep8-naming
 # Q:    flake8-quotes
 # D:    pydocstyle
-# D1:   pydocstyle Missing doctring
-# D203: pydocstyle: one-blank-line-before-class
-# D205: pydocstyle: blank-line-after-summary
-# D212: pydocstyle: multi-line-summary-first-line
-# D401: pydocstyle: non-imperative-mood
+# D1:     pydocstyle: Missing doctring
+# PYI021: flake8-pyi: docstring-in-stub
+# D203:   pydocstyle: one-blank-line-before-class
+# D205:   pydocstyle: blank-line-after-summary
+# D212:   pydocstyle: multi-line-summary-first-line
+# D401:   pydocstyle: non-imperative-mood
 echo
 echo Run Ruff
-ruff python-stubs --fix --extend-select=PYI,N,Q,D --ignore=D1,D203,D205,D212,D401
+ruff python-stubs --fix --extend-select=PYI,N,Q,D --ignore=PYI021,D1,D203,D205,D212,D401
 
 echo
 echo Run Black
