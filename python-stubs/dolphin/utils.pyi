@@ -9,7 +9,7 @@ def get_script_dir() -> str:
 
 def open_dir() -> str:
     """
-    Promtps the user to open a file using a QFileDialog.
+    Promtps the user to open a file.
 
     :return: value as string
     """
