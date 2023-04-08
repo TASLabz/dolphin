@@ -16,6 +16,11 @@
 
 class IniFile;
 
+namespace Core
+{
+class CPUThreadGuard;
+}
+
 namespace DiscIO
 {
 enum class Language;
@@ -68,17 +73,11 @@ struct SConfig
   void SetRunningGameMetadata(const std::string& game_id);
   // Reloads title-specific map files, patches, custom textures, etc.
   // This should only be called after the new title has been loaded into memory.
-  static void OnNewTitleLoad();
+  static void OnNewTitleLoad(const Core::CPUThreadGuard& guard);
 
   void LoadDefaults();
   static std::string MakeGameID(std::string_view file_name);
-  // Replaces NTSC-K with some other region, and doesn't replace non-NTSC-K regions
-  static DiscIO::Region ToGameCubeRegion(DiscIO::Region region);
-  // The region argument must be valid for GameCube (i.e. must not be NTSC-K)
-  static const char* GetDirectoryForRegion(DiscIO::Region region);
-  std::string GetBootROMPath(const std::string& region_directory) const;
   bool SetPathsAndGameMetadata(const BootParameters& boot);
-  static DiscIO::Region GetFallbackRegion();
   DiscIO::Language GetCurrentLanguage(bool wii) const;
   DiscIO::Language GetLanguageAdjustedForRegion(bool wii, DiscIO::Region region) const;
 

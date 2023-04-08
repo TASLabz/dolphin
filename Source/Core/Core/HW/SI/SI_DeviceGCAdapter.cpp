@@ -8,7 +8,6 @@
 #include "Common/CommonTypes.h"
 #include "Common/Swap.h"
 #include "Core/Config/MainSettings.h"
-#include "Core/ConfigManager.h"
 #include "Core/Core.h"
 #include "Core/HW/GCPad.h"
 #include "Core/NetPlayProto.h"
@@ -16,8 +15,8 @@
 
 namespace SerialInterface
 {
-CSIDevice_GCAdapter::CSIDevice_GCAdapter(SIDevices device, int device_number)
-    : CSIDevice_GCController(device, device_number)
+CSIDevice_GCAdapter::CSIDevice_GCAdapter(Core::System& system, SIDevices device, int device_number)
+    : CSIDevice_GCController(system, device, device_number)
 {
   // Make sure PAD_GET_ORIGIN gets set due to a newly connected device.
   GCAdapter::ResetDeviceType(m_device_number);

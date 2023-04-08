@@ -7,30 +7,50 @@
 #define DIR_SEP "/"
 #define DIR_SEP_CHR '/'
 
-// The user data dir
+// The current working directory
 #define ROOT_DIR "."
+
+// The normal user directory
+#ifndef STEAM
 #ifdef _WIN32
-#define USERDATA_DIR "User"
-#define DOLPHIN_DATA_DIR "Dolphin"
-#elif defined __APPLE__
-// On OS X, USERDATA_DIR exists within the .app, but *always* reference
-// the copy in Application Support instead! (Copied on first run)
-// You can use the File::GetUserPath() util for this
-#define USERDATA_DIR "Contents/Resources/User"
-#define DOLPHIN_DATA_DIR "Library/Application Support/Dolphin"
-#elif defined ANDROID
-#define USERDATA_DIR "user"
-#define DOLPHIN_DATA_DIR "/sdcard/dolphin-emu"
-#define NOMEDIA_FILE ".nomedia"
+#define NORMAL_USER_DIR "Dolphin Emulator"
+#elif defined(__APPLE__)
+#define NORMAL_USER_DIR "Library/Application Support/Dolphin"
+#elif defined(ANDROID)
+#define NORMAL_USER_DIR "/sdcard/dolphin-emu"
 #else
-#define USERDATA_DIR "user"
-#define DOLPHIN_DATA_DIR "dolphin-emu"
+#define NORMAL_USER_DIR "dolphin-emu"
+#endif
+#else  // ifndef STEAM
+#ifdef _WIN32
+#define NORMAL_USER_DIR "Dolphin Emulator (Steam)"
+#elif defined(__APPLE__)
+#define NORMAL_USER_DIR "Library/Application Support/Dolphin (Steam)"
+#else
+#define NORMAL_USER_DIR "dolphin-emu-steam"
+#endif
 #endif
 
+// The portable user directory
+#ifdef _WIN32
+#define PORTABLE_USER_DIR "User"
+#elif defined(__APPLE__)
+#define PORTABLE_USER_DIR "User"
+#define EMBEDDED_USER_DIR "Contents/Resources/User"
+#else
+#define PORTABLE_USER_DIR "user"
+#define EMBEDDED_USER_DIR PORTABLE_USER_DIR
+#endif
+
+// Flag file to prevent media scanning from indexing a directory
+#define NOMEDIA_FILE ".nomedia"
+
 // Dirs in both User and Sys
+// Legacy setups used /JAP/ while newer setups use /JPN/ by default.
 #define EUR_DIR "EUR"
 #define USA_DIR "USA"
 #define JAP_DIR "JAP"
+#define JPN_DIR "JPN"
 
 // Subdirs in the User dir returned by GetUserPath(D_USER_IDX)
 #define GC_USER_DIR "GC"
@@ -49,6 +69,7 @@
 #define HIRES_TEXTURES_DIR "Textures"
 #define RIIVOLUTION_DIR "Riivolution"
 #define SCRIPTS_DIR "Scripts"
+#define MODULES_DIR "Modules"
 #define DUMP_DIR "Dump"
 #define DUMP_TEXTURES_DIR "Textures"
 #define DUMP_FRAMES_DIR "Frames"
@@ -73,6 +94,8 @@
 #define BACKUP_DIR "Backup"
 #define RESOURCEPACK_DIR "ResourcePacks"
 #define DYNAMICINPUT_DIR "DynamicInputTextures"
+#define GRAPHICSMOD_DIR "GraphicMods"
+#define WIISDSYNC_DIR "WiiSDSync"
 
 // This one is only used to remove it if it was present
 #define SHADERCACHE_LEGACY_DIR "ShaderCache"
@@ -128,7 +151,7 @@
 
 #define WII_STATE "state.dat"
 
-#define WII_SDCARD "sd.raw"
+#define WII_SD_CARD_IMAGE "WiiSD.raw"
 #define WII_BTDINF_BACKUP "btdinf.bak"
 
 #define WII_SETTING "setting.txt"
@@ -138,3 +161,6 @@
 // Subdirs in Sys
 #define GC_SYS_DIR "GC"
 #define WII_SYS_DIR "Wii"
+
+// Subdirs in Config
+#define GRAPHICSMOD_CONFIG_DIR "GraphicMods"

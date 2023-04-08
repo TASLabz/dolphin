@@ -13,12 +13,15 @@
   <ImportGroup Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="$(VSPropsDir)Base.props" />
+    <Import Project="$(VSPropsDir)Base.Dolphin.props" />
     <Import Project="$(VSPropsDir)PCHUse.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalIncludeDirectories>$(ExternalsDir)python\$(Platform)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ExternalsDir)imgui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ExternalsDir)fmt\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -34,8 +37,10 @@
     <ClCompile Include="Python\PyScriptingBackend.cpp" />
     <ClCompile Include="Python\Utils\object_wrapper.cpp" />
     <ClCompile Include="ScriptingEngine.cpp" />
+    <ClCompile Include="ScriptList.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ScriptList.h" />
     <ClInclude Include="Python\coroutine.h" />
     <ClInclude Include="Python\Modules\controllermodule.h" />
     <ClInclude Include="Python\Modules\doliomodule.h" />

@@ -12,6 +12,7 @@
 #include "Core/API/Events.h"
 #include "Core/HW/ProcessorInterface.h"
 #include "Core/Movie.h"
+#include "Core/System.h"
 
 #include "Scripting/Python/coroutine.h"
 #include "Scripting/Python/Utils/convert.h"
@@ -355,7 +356,8 @@ static PyObject* SystemReset(PyObject* self)
   // Copy from DolphinQt/MainWindow.cpp: MainWindow::Reset()
   if (Movie::IsRecordingInput())
     Movie::SetReset(true);
-  ProcessorInterface::ResetButton_Tap();
+
+  Core::System::GetInstance().GetProcessorInterface().ResetButton_Tap();
   Py_RETURN_NONE;
 }
 

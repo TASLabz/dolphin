@@ -27,7 +27,7 @@ public:
   BaseManip(API::EventHub& event_hub) : m_event_hub(event_hub)
   {
     m_frame_advanced_listener = m_event_hub.ListenEvent<API::Events::FrameAdvance>(
-        [&](const API::Events::FrameAdvance&) { NotifyFrameAdvanced(); });
+      [&](const API::Events::FrameAdvance&) { NotifyFrameAdvanced(); });
   }
   ~BaseManip() { m_event_hub.UnlistenEvent(m_frame_advanced_listener); }
   void Clear() { m_overrides.clear(); }
@@ -121,7 +121,7 @@ public:
   void PerformInputManip(WiimoteCommon::DataReportBuilder& rpt, int controller_id,
                          WiimoteEmu::EncryptionKey key);
   void SaveNunchuckState(WiimoteCommon::DataReportBuilder& rpt,
-                                               int controller_id, WiimoteEmu::EncryptionKey key);
+                         int controller_id, WiimoteEmu::EncryptionKey key);
 
 private:
   std::map<int, WiimoteEmu::Nunchuk::DataFormat> m_nunchuk_state;

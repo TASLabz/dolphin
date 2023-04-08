@@ -24,16 +24,18 @@ public:
   void DeclareAsHostThread();
   bool IsHostThread();
 
-  bool GetRenderFocus();
-  bool GetRenderFullFocus();
-  bool GetRenderFullscreen();
-  bool GetGBAFocus();
+  bool GetRenderFocus() const;
+  bool GetRenderFullFocus() const;
+  bool GetRenderFullscreen() const;
+  bool GetTASInputFullFocus() const;
+  bool GetGBAFocus() const;
 
   void SetMainWindowHandle(void* handle);
   void SetRenderHandle(void* handle);
   void SetRenderFocus(bool focus);
   void SetRenderFullFocus(bool focus);
   void SetRenderFullscreen(bool fullscreen);
+  void SetTASInputFullFocus(bool focus);
   void ResizeSurface(int new_width, int new_height);
   void RequestNotifyMapLoaded();
 
@@ -53,4 +55,5 @@ private:
   std::atomic<bool> m_render_focus{false};
   std::atomic<bool> m_render_full_focus{false};
   std::atomic<bool> m_render_fullscreen{false};
+  std::atomic<bool> m_tas_input_full_focus{false};
 };

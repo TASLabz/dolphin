@@ -6,6 +6,7 @@
 
 #include <functional>
 #include <mutex>
+#include <vector>
 
 #include "Common/CommonTypes.h"
 

@@ -6,14 +6,9 @@
 
 #include <QAbstractListModel>
 
-#include "Scripting/ScriptingEngine.h"
+#include <filesystem>
 
-struct Script
-{
-  std::string filename;
-  Scripting::ScriptingBackend* backend;
-  bool enabled;
-};
+
 
 class ScriptsListModel : public QAbstractListModel
 {
@@ -26,10 +21,7 @@ public:
   bool setData(const QModelIndex& index, const QVariant& value, int role) override;
   Qt::ItemFlags flags(const QModelIndex& index) const override;
 
-  void Add(std::string filename, bool enabled = false);
+  void Add(std::filesystem::path path, bool enabled = false);
   void Restart(int index);
   void Remove(int index);
-
-private:
-  std::vector<Script> m_scripts;
 };

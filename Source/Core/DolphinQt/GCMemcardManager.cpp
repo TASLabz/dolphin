@@ -228,7 +228,8 @@ void GCMemcardManager::LoadDefaultMemcards()
       continue;
     }
 
-    const QString path = QString::fromStdString(Config::Get(Config::GetInfoForMemcardPath(slot)));
+    const QString path = QString::fromStdString(
+        Config::GetMemcardPath(slot, Config::Get(Config::MAIN_FALLBACK_REGION)));
     SetSlotFile(slot, path);
   }
 }
@@ -400,7 +401,7 @@ static QString GetFormatDescription(Memcard::SavefileFormat format)
   case Memcard::SavefileFormat::SAV:
     return QObject::tr("Datel MaxDrive/Pro files");
   default:
-    ASSERT(0);
+    ASSERT(false);
     return QObject::tr("Native GCI File");
   }
 }

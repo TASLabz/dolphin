@@ -22,6 +22,8 @@
 #include <cmath>
 #include <utility>
 
+#include <fmt/format.h>
+
 #include <QDesktopServices>
 #include <QDir>
 #include <QErrorMessage>
@@ -50,6 +52,7 @@
 #include "Core/HW/EXI/EXI.h"
 #include "Core/HW/EXI/EXI_Device.h"
 #include "Core/HW/WiiSave.h"
+#include "Core/System.h"
 #include "Core/WiiUtils.h"
 
 #include "DiscIO/Blob.h"
@@ -540,6 +543,8 @@ void GameList::OpenProperties()
   properties->setAttribute(Qt::WA_DeleteOnClose, true);
 
   connect(properties, &PropertiesDialog::OpenGeneralSettings, this, &GameList::OpenGeneralSettings);
+  connect(properties, &PropertiesDialog::OpenGraphicsSettings, this,
+          &GameList::OpenGraphicsSettings);
 
   properties->show();
 }
@@ -712,16 +717,10 @@ void GameList::OpenGCSaveFolder()
     {
     case ExpansionInterface::EXIDeviceType::MemoryCardFolder:
     {
-      std::string path = StringFromFormat("%s/%s/%s", File::GetUserPath(D_GCUSER_IDX).c_str(),
-                                          SConfig::GetDirectoryForRegion(game->GetRegion()),
-                                          slot == Slot::A ? "Card A" : "Card B");
-
       std::string override_path = Config::Get(Config::GetInfoForGCIPathOverride(slot));
-
-      if (!override_path.empty())
-        path = override_path;
-
-      QDir dir(QString::fromStdString(path));
+      QDir dir(QString::fromStdString(override_path.empty() ?
+                                          Config::GetGCIFolderPath(slot, game->GetRegion()) :
+                                          override_path));
 
       if (!dir.entryList({QStringLiteral("%1-%2-*.gci")
                               .arg(QString::fromStdString(game->GetMakerID()))
@@ -734,7 +733,7 @@ void GameList::OpenGCSaveFolder()
     }
     case ExpansionInterface::EXIDeviceType::MemoryCard:
     {
-      std::string memcard_path = Config::Get(Config::GetInfoForMemcardPath(slot));
+      const std::string memcard_path = Config::GetMemcardPath(slot, game->GetRegion());
 
       std::string memcard_dir;
 
@@ -854,7 +853,9 @@ void GameList::ChangeDisc()
   if (!game)
     return;
 
-  Core::RunAsCPUThread([file_path = game->GetFilePath()] { DVDInterface::ChangeDisc(file_path); });
+  Core::RunAsCPUThread([file_path = game->GetFilePath()] {
+    Core::System::GetInstance().GetDVDInterface().ChangeDisc(file_path);
+  });
 }
 
 QAbstractItemView* GameList::GetActiveView() const

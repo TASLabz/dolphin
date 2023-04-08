@@ -10,6 +10,7 @@
 #include <string>
 #include <string_view>
 
+
 #include "Common/CommonTypes.h"
 
 struct BootParameters;
@@ -186,7 +187,8 @@ bool PlayInput(const std::string& movie_path, std::optional<std::string>* savest
 void LoadInput(const std::string& movie_path);
 void ReadHeader();
 void PlayController(GCPadStatus* PadStatus, int controllerID);
-bool PlayWiimote(int wiimote, WiimoteCommon::DataReportBuilder& rpt);
+bool PlayWiimote(int wiimote, WiimoteCommon::DataReportBuilder& rpt, int ext,
+                 const WiimoteEmu::EncryptionKey& key);
 void EndPlayInput(bool cont);
 void SaveRecording(const std::string& filename);
 void DoState(PointerWrap& p);

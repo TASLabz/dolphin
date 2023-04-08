@@ -19,7 +19,6 @@
 #include "Common/FileUtil.h"
 #include "Common/StringUtil.h"
 
-#include "Common/CDUtils.h"
 #include "Core/Boot/Boot.h"
 #include "Core/CommonTitles.h"
 #include "Core/Config/MainSettings.h"
@@ -43,6 +42,7 @@
 #include "Core/PowerPC/PowerPC.h"
 #include "Core/PowerPC/SignatureDB/SignatureDB.h"
 #include "Core/State.h"
+#include "Core/System.h"
 #include "Core/TitleDatabase.h"
 #include "Core/WiiUtils.h"
 
@@ -52,6 +52,7 @@
 
 #include "DolphinQt/AboutDialog.h"
 #include "DolphinQt/Host.h"
+#include "DolphinQt/NANDRepairDialog.h"
 #include "DolphinQt/QtUtils/DolphinFileDialog.h"
 #include "DolphinQt/QtUtils/ModalMessageBox.h"
 #include "DolphinQt/QtUtils/ParallelProgressDialog.h"
@@ -85,7 +86,7 @@ MenuBar::MenuBar(QWidget* parent) : QMenuBar(parent)
   AddHelpMenu();
 
   connect(&Settings::Instance(), &Settings::EmulationStateChanged, this,
-          [=](Core::State state) { OnEmulationStateChanged(state); });
+          [=, this](Core::State state) { OnEmulationStateChanged(state); });
   connect(Host::GetInstance(), &Host::UpdateDisasmDialog, this,
           [this] { OnEmulationStateChanged(Core::GetState()); });
 
@@ -129,9 +130,6 @@ void MenuBar::OnEmulationStateChanged(Core::State state)
   }
   m_recording_play->setEnabled(m_game_selected && !running);
   m_recording_start->setEnabled((m_game_selected || running) && !Movie::IsPlayingInput());
-
-  // Options
-  m_controllers_action->setEnabled(NetPlay::IsNetPlayRunning() ? !running : true);
 
   // JIT
   m_jit_interpreter_core->setEnabled(running);
@@ -191,19 +189,6 @@ void MenuBar::OnDebugModeToggled(bool enabled)
   }
 }
 
-void MenuBar::AddDVDBackupMenu(QMenu* file_menu)
-{
-  m_backup_menu = file_menu->addMenu(tr("&Boot from DVD Backup"));
-
-  const std::vector<std::string> drives = Common::GetCDDevices();
-  // Windows Limitation of 24 character drives
-  for (size_t i = 0; i < drives.size() && i < 24; i++)
-  {
-    auto drive = QString::fromStdString(drives[i]);
-    m_backup_menu->addAction(drive, this, [this, drive] { emit BootDVDBackup(drive); });
-  }
-}
-
 void MenuBar::AddFileMenu()
 {
   QMenu* file_menu = addMenu(tr("&File"));
@@ -214,7 +199,10 @@ void MenuBar::AddFileMenu()
   m_change_disc = file_menu->addAction(tr("Change &Disc..."), this, &MenuBar::ChangeDisc);
   m_eject_disc = file_menu->addAction(tr("&Eject Disc"), this, &MenuBar::EjectDisc);
 
-  AddDVDBackupMenu(file_menu);
+  file_menu->addSeparator();
+
+  m_open_user_folder =
+      file_menu->addAction(tr("Open &User Folder"), this, &MenuBar::OpenUserFolder);
 
   file_menu->addSeparator();
 
@@ -232,6 +220,8 @@ void MenuBar::AddToolsMenu()
   tools_menu->addAction(tr("&Cheats Manager"), this, [this] { emit ShowCheatsManager(); });
 
   tools_menu->addAction(tr("FIFO Player"), this, &MenuBar::ShowFIFOPlayer);
+
+  tools_menu->addAction(tr("&Skylanders Portal"), this, &MenuBar::ShowSkylanderPortal);
 
   tools_menu->addSeparator();
 
@@ -339,7 +329,7 @@ void MenuBar::AddStateLoadMenu(QMenu* emu_menu)
   {
     QAction* action = m_state_load_slots_menu->addAction(QString{});
 
-    connect(action, &QAction::triggered, this, [=]() { emit StateLoadSlotAt(i); });
+    connect(action, &QAction::triggered, this, [=, this]() { emit StateLoadSlotAt(i); });
   }
 }
 
@@ -356,7 +346,7 @@ void MenuBar::AddStateSaveMenu(QMenu* emu_menu)
   {
     QAction* action = m_state_save_slots_menu->addAction(QString{});
 
-    connect(action, &QAction::triggered, this, [=]() { emit StateSaveSlotAt(i); });
+    connect(action, &QAction::triggered, this, [=, this]() { emit StateSaveSlotAt(i); });
   }
 }
 
@@ -373,7 +363,7 @@ void MenuBar::AddStateSlotMenu(QMenu* emu_menu)
     if (Settings::Instance().GetStateSlot() == i)
       action->setChecked(true);
 
-    connect(action, &QAction::triggered, this, [=]() { emit SetStateSlot(i); });
+    connect(action, &QAction::triggered, this, [=, this]() { emit SetStateSlot(i); });
   }
 }
 
@@ -554,8 +544,7 @@ void MenuBar::AddOptionsMenu()
   m_reset_ignore_panic_handler = options_menu->addAction(tr("Reset Ignore Panic Handler"));
 
   connect(m_reset_ignore_panic_handler, &QAction::triggered, this, []() {
-    if (Config::Get(Config::MAIN_USE_PANIC_HANDLERS))
-      Common::SetEnableAlert(true);
+    Config::DeleteKey(Config::LayerType::CurrentRun, Config::MAIN_USE_PANIC_HANDLERS);
   });
 
   m_change_font = options_menu->addAction(tr("&Font..."), this, &MenuBar::ChangeDebugFont);
@@ -568,12 +557,7 @@ void MenuBar::InstallUpdateManually()
   auto* const updater = new Updater(this->parentWidget(), manual_track,
                                     Config::Get(Config::MAIN_AUTOUPDATE_HASH_OVERRIDE));
 
-  if (!updater->CheckForUpdate())
-  {
-    ModalMessageBox::information(
-        this, tr("Update"),
-        tr("You are running the latest version available on this update track."));
-  }
+  updater->CheckForUpdate();
 }
 
 void MenuBar::AddHelpMenu()
@@ -1008,12 +992,9 @@ void MenuBar::UpdateToolsMenu(bool emulation_started)
 {
   m_boot_sysmenu->setEnabled(!emulation_started);
   m_perform_online_update_menu->setEnabled(!emulation_started);
-  m_ntscj_ipl->setEnabled(!emulation_started &&
-                          File::Exists(SConfig::GetInstance().GetBootROMPath(JAP_DIR)));
-  m_ntscu_ipl->setEnabled(!emulation_started &&
-                          File::Exists(SConfig::GetInstance().GetBootROMPath(USA_DIR)));
-  m_pal_ipl->setEnabled(!emulation_started &&
-                        File::Exists(SConfig::GetInstance().GetBootROMPath(EUR_DIR)));
+  m_ntscj_ipl->setEnabled(!emulation_started && File::Exists(Config::GetBootROMPath(JAP_DIR)));
+  m_ntscu_ipl->setEnabled(!emulation_started && File::Exists(Config::GetBootROMPath(USA_DIR)));
+  m_pal_ipl->setEnabled(!emulation_started && File::Exists(Config::GetBootROMPath(EUR_DIR)));
   m_import_backup->setEnabled(!emulation_started);
   m_check_nand->setEnabled(!emulation_started);
 
@@ -1023,10 +1004,14 @@ void MenuBar::UpdateToolsMenu(bool emulation_started)
     const auto tmd = ios.GetES()->FindInstalledTMD(Titles::SYSTEM_MENU);
 
     const QString sysmenu_version =
-        tmd.IsValid() ?
-            QString::fromStdString(DiscIO::GetSysMenuVersionString(tmd.GetTitleVersion())) :
-            QString{};
-    m_boot_sysmenu->setText(tr("Load Wii System Menu %1").arg(sysmenu_version));
+        tmd.IsValid() ? QString::fromStdString(
+                            DiscIO::GetSysMenuVersionString(tmd.GetTitleVersion(), tmd.IsvWii())) :
+                        QString{};
+
+    const QString sysmenu_text = (tmd.IsValid() && tmd.IsvWii()) ? tr("Load vWii System Menu %1") :
+                                                                   tr("Load Wii System Menu %1");
+
+    m_boot_sysmenu->setText(sysmenu_text.arg(sysmenu_version));
 
     m_boot_sysmenu->setEnabled(tmd.IsValid());
 
@@ -1136,47 +1121,7 @@ void MenuBar::CheckNAND()
     return;
   }
 
-  QString message = tr("The emulated NAND is damaged. System titles such as the Wii Menu and "
-                       "the Wii Shop Channel may not work correctly.\n\n"
-                       "Do you want to try to repair the NAND?");
-  if (!result.titles_to_remove.empty())
-  {
-    std::string title_listings;
-    Core::TitleDatabase title_db;
-    const DiscIO::Language language = SConfig::GetInstance().GetCurrentLanguage(true);
-    for (const u64 title_id : result.titles_to_remove)
-    {
-      title_listings += StringFromFormat("%016" PRIx64, title_id);
-
-      const std::string database_name = title_db.GetChannelName(title_id, language);
-      if (!database_name.empty())
-      {
-        title_listings += " - " + database_name;
-      }
-      else
-      {
-        DiscIO::WiiSaveBanner banner(title_id);
-        if (banner.IsValid())
-        {
-          title_listings += " - " + banner.GetName();
-          const std::string description = banner.GetDescription();
-          if (!StripSpaces(description).empty())
-            title_listings += " - " + description;
-        }
-      }
-
-      title_listings += "\n";
-    }
-
-    message += tr("\n\nWARNING: Fixing this NAND requires the deletion of titles that have "
-                  "incomplete data on the NAND, including all associated save data. "
-                  "By continuing, the following title(s) will be removed:\n\n"
-                  "%1"
-                  "\nLaunching these titles may also fix the issues.")
-                   .arg(QString::fromStdString(title_listings));
-  }
-
-  if (ModalMessageBox::question(this, tr("NAND Check"), message) != QMessageBox::Yes)
+  if (NANDRepairDialog(result, this).exec() != QDialog::Accepted)
     return;
 
   if (WiiUtils::RepairNAND(ios))
@@ -1248,19 +1193,29 @@ void MenuBar::ClearSymbols()
 
 void MenuBar::GenerateSymbolsFromAddress()
 {
-  PPCAnalyst::FindFunctions(Memory::MEM1_BASE_ADDR,
-                            Memory::MEM1_BASE_ADDR + Memory::GetRamSizeReal(), &g_symbolDB);
+  Core::CPUThreadGuard guard(Core::System::GetInstance());
+
+  auto& system = Core::System::GetInstance();
+  auto& memory = system.GetMemory();
+
+  PPCAnalyst::FindFunctions(guard, Memory::MEM1_BASE_ADDR,
+                            Memory::MEM1_BASE_ADDR + memory.GetRamSizeReal(), &g_symbolDB);
   emit NotifySymbolsUpdated();
 }
 
 void MenuBar::GenerateSymbolsFromSignatureDB()
 {
-  PPCAnalyst::FindFunctions(Memory::MEM1_BASE_ADDR,
-                            Memory::MEM1_BASE_ADDR + Memory::GetRamSizeReal(), &g_symbolDB);
+  Core::CPUThreadGuard guard(Core::System::GetInstance());
+
+  auto& system = Core::System::GetInstance();
+  auto& memory = system.GetMemory();
+
+  PPCAnalyst::FindFunctions(guard, Memory::MEM1_BASE_ADDR,
+                            Memory::MEM1_BASE_ADDR + memory.GetRamSizeReal(), &g_symbolDB);
   SignatureDB db(SignatureDB::HandlerType::DSY);
   if (db.Load(File::GetSysDirectory() + TOTALDB))
   {
-    db.Apply(&g_symbolDB);
+    db.Apply(guard, &g_symbolDB);
     ModalMessageBox::information(
         this, tr("Information"),
         tr("Generated symbol names from '%1'").arg(QString::fromStdString(TOTALDB)));
@@ -1296,10 +1251,12 @@ void MenuBar::GenerateSymbolsFromRSO()
     return;
   }
 
+  Core::CPUThreadGuard guard(Core::System::GetInstance());
+
   RSOChainView rso_chain;
-  if (rso_chain.Load(static_cast<u32>(address)))
+  if (rso_chain.Load(guard, static_cast<u32>(address)))
   {
-    rso_chain.Apply(&g_symbolDB);
+    rso_chain.Apply(guard, &g_symbolDB);
     emit NotifySymbolsUpdated();
   }
   else
@@ -1349,9 +1306,12 @@ void MenuBar::GenerateSymbolsFromRSOAuto()
 
   RSOChainView rso_chain;
   const u32 address = item.mid(0, item.indexOf(QLatin1Char(' '))).toUInt(nullptr, 16);
-  if (rso_chain.Load(address))
+
+  Core::CPUThreadGuard guard(Core::System::GetInstance());
+
+  if (rso_chain.Load(guard, address))
   {
-    rso_chain.Apply(&g_symbolDB);
+    rso_chain.Apply(guard, &g_symbolDB);
     emit NotifySymbolsUpdated();
   }
   else
@@ -1362,6 +1322,8 @@ void MenuBar::GenerateSymbolsFromRSOAuto()
 
 RSOVector MenuBar::DetectRSOModules(ParallelProgressDialog& progress)
 {
+  Core::CPUThreadGuard guard(Core::System::GetInstance());
+
   constexpr std::array<std::string_view, 2> search_for = {".elf", ".plf"};
 
   const AddressSpace::Accessors* accessors =
@@ -1380,8 +1342,8 @@ RSOVector MenuBar::DetectRSOModules(ParallelProgressDialog& progress)
         return matches;
       }
 
-      auto found_addr =
-          accessors->Search(next, reinterpret_cast<const u8*>(str.data()), str.size() + 1, true);
+      auto found_addr = accessors->Search(guard, next, reinterpret_cast<const u8*>(str.data()),
+                                          str.size() + 1, true);
 
       if (!found_addr.has_value())
         break;
@@ -1390,13 +1352,13 @@ RSOVector MenuBar::DetectRSOModules(ParallelProgressDialog& progress)
 
       // Non-null data can precede the module name.
       // Get the maximum name length that a module could have.
-      auto get_max_module_name_len = [found_addr] {
+      auto get_max_module_name_len = [&guard, found_addr] {
         constexpr u32 MODULE_NAME_MAX_LENGTH = 260;
         u32 len = 0;
 
         for (; len < MODULE_NAME_MAX_LENGTH; ++len)
         {
-          const auto res = PowerPC::HostRead_U8(*found_addr - (len + 1));
+          const auto res = PowerPC::HostRead_U8(guard, *found_addr - (len + 1));
           if (!std::isprint(res))
           {
             break;
@@ -1431,12 +1393,12 @@ RSOVector MenuBar::DetectRSOModules(ParallelProgressDialog& progress)
 
         // Get the field (Module Name Offset) that point to the string
         const auto module_name_offset_addr =
-            accessors->Search(lookup_addr, ref.data(), ref.size(), false);
+            accessors->Search(guard, lookup_addr, ref.data(), ref.size(), false);
         if (!module_name_offset_addr.has_value())
           continue;
 
         // The next 4 bytes should be the module name length
-        module_name_length = accessors->ReadU32(*module_name_offset_addr + 4);
+        module_name_length = accessors->ReadU32(guard, *module_name_offset_addr + 4);
         if (module_name_length == max_name_length - i + str.length())
         {
           found_addr = module_name_offset_addr;
@@ -1448,11 +1410,11 @@ RSOVector MenuBar::DetectRSOModules(ParallelProgressDialog& progress)
       if (!found)
         continue;
 
-      const auto module_name_offset = accessors->ReadU32(*found_addr);
+      const auto module_name_offset = accessors->ReadU32(guard, *found_addr);
 
       // Go to the beginning of the RSO header
       matches.emplace_back(*found_addr - 16,
-                           PowerPC::HostGetString(module_name_offset, module_name_length));
+                           PowerPC::HostGetString(guard, module_name_offset, module_name_length));
 
       progress.SetLabelText(tr("Modules found: %1").arg(matches.size()));
     }
@@ -1463,17 +1425,25 @@ RSOVector MenuBar::DetectRSOModules(ParallelProgressDialog& progress)
 
 void MenuBar::LoadSymbolMap()
 {
+  auto& system = Core::System::GetInstance();
+  auto& memory = system.GetMemory();
+
   std::string existing_map_file, writable_map_file;
   bool map_exists = CBoot::FindMapFile(&existing_map_file, &writable_map_file);
 
   if (!map_exists)
   {
     g_symbolDB.Clear();
-    PPCAnalyst::FindFunctions(Memory::MEM1_BASE_ADDR + 0x1300000,
-                              Memory::MEM1_BASE_ADDR + Memory::GetRamSizeReal(), &g_symbolDB);
-    SignatureDB db(SignatureDB::HandlerType::DSY);
-    if (db.Load(File::GetSysDirectory() + TOTALDB))
-      db.Apply(&g_symbolDB);
+
+    {
+      Core::CPUThreadGuard guard(Core::System::GetInstance());
+
+      PPCAnalyst::FindFunctions(guard, Memory::MEM1_BASE_ADDR + 0x1300000,
+                                Memory::MEM1_BASE_ADDR + memory.GetRamSizeReal(), &g_symbolDB);
+      SignatureDB db(SignatureDB::HandlerType::DSY);
+      if (db.Load(File::GetSysDirectory() + TOTALDB))
+        db.Apply(guard, &g_symbolDB);
+    }
 
     ModalMessageBox::warning(this, tr("Warning"),
                              tr("'%1' not found, scanning for common functions instead")
@@ -1490,7 +1460,7 @@ void MenuBar::LoadSymbolMap()
                                  tr("Loaded symbols from '%1'").arg(existing_map_file_path));
   }
 
-  HLE::PatchFunctions();
+  HLE::PatchFunctions(system);
   emit NotifySymbolsUpdated();
 }
 
@@ -1514,7 +1484,8 @@ void MenuBar::LoadOtherSymbolMap()
   if (!TryLoadMapFile(file))
     return;
 
-  HLE::PatchFunctions();
+  auto& system = Core::System::GetInstance();
+  HLE::PatchFunctions(system);
   emit NotifySymbolsUpdated();
 }
 
@@ -1530,7 +1501,8 @@ void MenuBar::LoadBadSymbolMap()
   if (!TryLoadMapFile(file, true))
     return;
 
-  HLE::PatchFunctions();
+  auto& system = Core::System::GetInstance();
+  HLE::PatchFunctions(system);
   emit NotifySymbolsUpdated();
 }
 
@@ -1556,7 +1528,13 @@ void MenuBar::SaveCode()
   const std::string path =
       writable_map_file.substr(0, writable_map_file.find_last_of('.')) + "_code.map";
 
-  if (!g_symbolDB.SaveCodeMap(path))
+  bool success;
+  {
+    Core::CPUThreadGuard guard(Core::System::GetInstance());
+    success = g_symbolDB.SaveCodeMap(guard, path);
+  }
+
+  if (!success)
   {
     ModalMessageBox::warning(
         this, tr("Error"),
@@ -1566,7 +1544,9 @@ void MenuBar::SaveCode()
 
 bool MenuBar::TryLoadMapFile(const QString& path, const bool bad)
 {
-  if (!g_symbolDB.LoadMap(path.toStdString(), bad))
+  Core::CPUThreadGuard guard(Core::System::GetInstance());
+
+  if (!g_symbolDB.LoadMap(guard, path.toStdString(), bad))
   {
     ModalMessageBox::warning(this, tr("Error"), tr("Failed to load map file '%1'").arg(path));
     return false;
@@ -1647,9 +1627,13 @@ void MenuBar::ApplySignatureFile()
   const std::string load_path = file.toStdString();
   SignatureDB db(load_path);
   db.Load(load_path);
-  db.Apply(&g_symbolDB);
+  {
+    Core::CPUThreadGuard guard(Core::System::GetInstance());
+    db.Apply(guard, &g_symbolDB);
+  }
   db.List();
-  HLE::PatchFunctions();
+  auto& system = Core::System::GetInstance();
+  HLE::PatchFunctions(system);
   emit NotifySymbolsUpdated();
 }
 
@@ -1688,12 +1672,13 @@ void MenuBar::CombineSignatureFiles()
 
 void MenuBar::PatchHLEFunctions()
 {
-  HLE::PatchFunctions();
+  auto& system = Core::System::GetInstance();
+  HLE::PatchFunctions(system);
 }
 
 void MenuBar::ClearCache()
 {
-  Core::RunAsCPUThread(JitInterface::ClearCache);
+  Core::RunAsCPUThread([] { Core::System::GetInstance().GetJitInterface().ClearCache(); });
 }
 
 void MenuBar::LogInstructions()
@@ -1711,12 +1696,17 @@ void MenuBar::SearchInstruction()
   if (!good)
     return;
 
+  auto& system = Core::System::GetInstance();
+  auto& memory = system.GetMemory();
+
+  Core::CPUThreadGuard guard(system);
+
   bool found = false;
-  for (u32 addr = Memory::MEM1_BASE_ADDR; addr < Memory::MEM1_BASE_ADDR + Memory::GetRamSizeReal();
+  for (u32 addr = Memory::MEM1_BASE_ADDR; addr < Memory::MEM1_BASE_ADDR + memory.GetRamSizeReal();
        addr += 4)
   {
     const auto ins_name =
-        QString::fromStdString(PPCTables::GetInstructionName(PowerPC::HostRead_U32(addr)));
+        QString::fromStdString(PPCTables::GetInstructionName(PowerPC::HostRead_U32(guard, addr)));
     if (op == ins_name)
     {
       NOTICE_LOG_FMT(POWERPC, "Found {} at {:08x}", op.toStdString(), addr);

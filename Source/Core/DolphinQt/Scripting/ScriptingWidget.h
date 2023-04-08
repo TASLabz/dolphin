@@ -14,6 +14,7 @@ class ScriptingWidget : public QDockWidget
   Q_OBJECT
 public:
   ScriptingWidget(QWidget* parent = nullptr);
+  void PopulateScripts();
   void AddNewScript();
   void RestartSelectedScript();
   void RemoveSelectedScript();

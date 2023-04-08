@@ -56,7 +56,7 @@ WiimoteCommon::ButtonData WiiButtonsManip::Get(int controller_id)
 }
 
 void WiiButtonsManip::Set(WiimoteCommon::ButtonData button_data, int controller_id,
-                                 ClearOn clear_on)
+                          ClearOn clear_on)
 {
   m_overrides[controller_id] = {button_data, clear_on, /* used: */ false};
 }
@@ -105,7 +105,7 @@ void WiiIRManip::PerformInputManip(WiimoteCommon::DataReportBuilder& rpt, int co
   const WiiInputIROverride& input_override = iter->second;
 
   u8* const ir_data = rpt.GetIRDataPtr();
-  
+
   using WiimoteEmu::CameraLogic;
   u8 mode = CameraLogic::IR_MODE_BASIC;
   if (rpt.GetIRDataSize() == sizeof(WiimoteEmu::IRExtended) * 4)
@@ -117,7 +117,7 @@ void WiiIRManip::PerformInputManip(WiimoteCommon::DataReportBuilder& rpt, int co
   const auto face_forward = Matrix33::RotateX(static_cast<float>(MathUtil::TAU) / -4);
   const auto ir_transform = input_override.ircamera_transform;
   const auto transform =
-    Matrix44::FromMatrix33(face_forward) * 
+    Matrix44::FromMatrix33(face_forward) *
     Matrix44::FromQuaternion(Quaternion::RotateXYZ(ir_transform.pitch_yaw_roll)) *
     Matrix44::Translate(ir_transform.position);
   const Vec2 fov = {CameraLogic::CAMERA_FOV_X, CameraLogic::CAMERA_FOV_Y};

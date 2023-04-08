@@ -12,12 +12,13 @@
 #include <string_view>
 #include <variant>
 
+#include <Core/Core.h>
+
 #include <fmt/format.h>
 
 #include "AudioCommon/AudioCommon.h"
 
 #include "Common/Assert.h"
-#include "Common/CDUtils.h"
 #include "Common/CommonPaths.h"
 #include "Common/CommonTypes.h"
 #include "Common/Config/Config.h"
@@ -49,6 +50,7 @@
 #include "Core/PatchEngine.h"
 #include "Core/PowerPC/PPCSymbolDB.h"
 #include "Core/PowerPC/PowerPC.h"
+#include "Core/System.h"
 #include "Core/TitleDatabase.h"
 #include "VideoCommon/HiresTextures.h"
 
@@ -124,7 +126,7 @@ void SConfig::SetRunningGameMetadata(const IOS::ES::TMDReader& tmd, DiscIO::Plat
   // (IOS HLE ES calls us with a TMDReader rather than a volume when launching
   // a disc game, because ES has no reason to be accessing the disc directly.)
   if (platform == DiscIO::Platform::WiiWAD ||
-      !DVDInterface::UpdateRunningGameMetadata(tmd_title_id))
+      !Core::System::GetInstance().GetDVDInterface().UpdateRunningGameMetadata(tmd_title_id))
   {
     // If not launching a disc game, just read everything from the TMD.
     SetRunningGameMetadata(tmd.GetGameID(), tmd.GetGameTDBID(), tmd_title_id, tmd.GetTitleVersion(),
@@ -177,6 +179,10 @@ void SConfig::SetRunningGameMetadata(const std::string& game_id, const std::stri
   m_title_description = title_database.Describe(m_gametdb_id, language);
   NOTICE_LOG_FMT(CORE, "Active title: {}", m_title_description);
   Host_TitleChanged();
+  if (Core::IsRunning())
+  {
+    Core::UpdateTitle();
+  }
 
   Config::AddLayer(ConfigLoaders::GenerateGlobalGameConfigLoader(game_id, revision));
   Config::AddLayer(ConfigLoaders::GenerateLocalGameConfigLoader(game_id, revision));
@@ -185,7 +191,7 @@ void SConfig::SetRunningGameMetadata(const std::string& game_id, const std::stri
     DolphinAnalytics::Instance().ReportGameStart();
 }
 
-void SConfig::OnNewTitleLoad()
+void SConfig::OnNewTitleLoad(const Core::CPUThreadGuard& guard)
 {
   if (!Core::IsRunning())
     return;
@@ -195,8 +201,9 @@ void SConfig::OnNewTitleLoad()
     g_symbolDB.Clear();
     Host_NotifyMapLoaded();
   }
-  CBoot::LoadMapFromFilename();
-  HLE::Reload();
+  CBoot::LoadMapFromFilename(guard);
+  auto& system = Core::System::GetInstance();
+  HLE::Reload(system);
   PatchEngine::Reload();
   HiresTexture::Update();
 }
@@ -218,53 +225,6 @@ std::string SConfig::MakeGameID(std::string_view file_name)
   if (lastdot == std::string::npos)
     return "ID-" + std::string(file_name);
   return "ID-" + std::string(file_name.substr(0, lastdot));
-}
-
-// The reason we need this function is because some memory card code
-// expects to get a non-NTSC-K region even if we're emulating an NTSC-K Wii.
-DiscIO::Region SConfig::ToGameCubeRegion(DiscIO::Region region)
-{
-  if (region != DiscIO::Region::NTSC_K)
-    return region;
-
-  // GameCube has no NTSC-K region. No choice of replacement value is completely
-  // non-arbitrary, but let's go with NTSC-J since Korean GameCubes are NTSC-J.
-  return DiscIO::Region::NTSC_J;
-}
-
-const char* SConfig::GetDirectoryForRegion(DiscIO::Region region)
-{
-  if (region == DiscIO::Region::Unknown)
-    region = ToGameCubeRegion(GetFallbackRegion());
-
-  switch (region)
-  {
-  case DiscIO::Region::NTSC_J:
-    return JAP_DIR;
-
-  case DiscIO::Region::NTSC_U:
-    return USA_DIR;
-
-  case DiscIO::Region::PAL:
-    return EUR_DIR;
-
-  case DiscIO::Region::NTSC_K:
-    ASSERT_MSG(BOOT, false, "NTSC-K is not a valid GameCube region");
-    return JAP_DIR;  // See ToGameCubeRegion
-
-  default:
-    ASSERT_MSG(BOOT, false, "Default case should not be reached");
-    return EUR_DIR;
-  }
-}
-
-std::string SConfig::GetBootROMPath(const std::string& region_directory) const
-{
-  const std::string path =
-      File::GetUserPath(D_GCUSER_IDX) + DIR_SEP + region_directory + DIR_SEP GC_IPL;
-  if (!File::Exists(path))
-    return File::GetSysDirectory() + GC_SYS_DIR + DIR_SEP + region_directory + DIR_SEP GC_IPL;
-  return path;
 }
 
 struct SetGameMetadata
@@ -375,19 +335,14 @@ bool SConfig::SetPathsAndGameMetadata(const BootParameters& boot)
     return false;
 
   if (m_region == DiscIO::Region::Unknown)
-    m_region = GetFallbackRegion();
+    m_region = Config::Get(Config::MAIN_FALLBACK_REGION);
 
   // Set up paths
-  const std::string region_dir = GetDirectoryForRegion(ToGameCubeRegion(m_region));
+  const std::string region_dir = Config::GetDirectoryForRegion(Config::ToGameCubeRegion(m_region));
   m_strSRAM = File::GetUserPath(F_GCSRAM_IDX);
-  m_strBootROM = GetBootROMPath(region_dir);
+  m_strBootROM = Config::GetBootROMPath(region_dir);
 
   return true;
-}
-
-DiscIO::Region SConfig::GetFallbackRegion()
-{
-  return Config::Get(Config::MAIN_FALLBACK_REGION);
 }
 
 DiscIO::Language SConfig::GetCurrentLanguage(bool wii) const

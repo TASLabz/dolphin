@@ -34,6 +34,7 @@ static PyThreadState* InitMainPythonInterpreter()
       UTF8ToWString(File::GetExeDirectory()) + L"/python-embed/python38.zip;" +
       UTF8ToWString(File::GetExeDirectory()) + L"/python-embed;" +
       UTF8ToWString(File::GetExeDirectory()) + L";" +
+      UTF8ToWString(File::GetUserPath(D_MODULES_IDX)) + L";" +
       UTF8ToWString(File::GetUserPath(D_SCRIPTS_IDX)) + L";";
 #endif
 

@@ -20,6 +20,7 @@ signals:
 public slots:
   void SetX(u16 x);
   void SetY(u16 y);
+  void SetAxisLines(bool toggle);
 
 protected:
   void paintEvent(QPaintEvent* event) override;
@@ -33,4 +34,5 @@ private:
   u16 m_x = 0;
   u16 m_y = 0;
   bool m_ignore_movement = false;
+  bool m_axis_lines = false;
 };
