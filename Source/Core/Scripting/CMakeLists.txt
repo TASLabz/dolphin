@@ -23,6 +23,8 @@ add_library(scripting
   Python/Modules/registersmodule.h
   Python/Modules/savestatemodule.cpp
   Python/Modules/savestatemodule.h
+  Python/Modules/utilmodule.cpp
+  Python/Modules/utilmodule.h
   Python/Utils/as_py_func.h
   Python/Utils/convert.h
   Python/Utils/fmt.h
@@ -35,4 +37,4 @@ add_library(scripting
 find_package(Python3 REQUIRED COMPONENTS Development)
 include_directories(${Python3_INCLUDE_DIRS})
 # TODO imgui shouldn't be here
-target_link_libraries(scripting PRIVATE ${Python3_LIBRARIES} imgui core)
+target_link_libraries(scripting PRIVATE ${Python3_LIBRARIES} imgui core nfd)

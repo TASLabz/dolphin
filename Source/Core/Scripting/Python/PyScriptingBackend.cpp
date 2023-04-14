@@ -16,6 +16,7 @@
 #include "Scripting/Python/Modules/doliomodule.h"
 #include "Scripting/Python/Modules/dolphinmodule.h"
 #include "Scripting/Python/Modules/eventmodule.h"
+#include "Scripting/Python/Modules/utilmodule.h"
 #include "Scripting/Python/Modules/guimodule.h"
 #include "Scripting/Python/Modules/memorymodule.h"
 #include "Scripting/Python/Modules/registersmodule.h"
@@ -54,6 +55,8 @@ static PyThreadState* InitMainPythonInterpreter()
     ERROR_LOG_FMT(SCRIPTING, "failed to add dolphin_controller to builtins");
   if (PyImport_AppendInittab("dolphin_registers", PyInit_registers) == -1)
     ERROR_LOG_FMT(SCRIPTING, "failed to add dolphin_registers to builtins");
+  if (PyImport_AppendInittab("dolphin_utils", PyInit_dol_utils) == -1)
+    ERROR_LOG_FMT(SCRIPTING, "failed to add dolphin_utils to builtins");
 
   if (PyImport_AppendInittab("dolphin", PyInit_dolphin) == -1)
     ERROR_LOG_FMT(SCRIPTING, "failed to add dolphin to builtins");

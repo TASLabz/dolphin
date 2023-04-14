@@ -21,6 +21,7 @@ import dolphin_memory as memory
 import dolphin_gui as gui
 import dolphin_savestate as savestate
 import dolphin_controller as controller
+import dolphin_utils as utils
 
 __all__ = [
     "event",
@@ -28,4 +29,5 @@ __all__ = [
     "gui",
     "savestate",
     "controller",
+    "utils",
 ]

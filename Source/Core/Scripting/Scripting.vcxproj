@@ -22,7 +22,12 @@
       <AdditionalIncludeDirectories>$(ExternalsDir)python\$(Platform)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>$(ExternalsDir)imgui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>$(ExternalsDir)fmt\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ExternalsDir)nativefiledialog-extended\src\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+    <Lib>
+      <AdditionalDependencies>nfd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(BuildRootDir)$(Platform)\$(Configuration)\nfd\bin;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Python\coroutine.cpp" />
@@ -34,6 +39,7 @@
     <ClCompile Include="Python\Modules\memorymodule.cpp" />
     <ClCompile Include="Python\Modules\savestatemodule.cpp" />
     <ClCompile Include="Python\Modules\registersmodule.cpp" />
+    <ClCompile Include="Python\Modules\utilmodule.cpp" />
     <ClCompile Include="Python\PyScriptingBackend.cpp" />
     <ClCompile Include="Python\Utils\object_wrapper.cpp" />
     <ClCompile Include="ScriptingEngine.cpp" />
@@ -49,7 +55,8 @@
     <ClInclude Include="Python\Modules\guimodule.h" />
     <ClInclude Include="Python\Modules\memorymodule.h" />
     <ClInclude Include="Python\Modules\savestatemodule.h" />
-    <ClCompile Include="Python\Modules\registersmodule.h" />
+    <ClInclude Include="Python\Modules\registersmodule.h" />
+    <ClInclude Include="Python\Modules\utilmodule.h" />
     <ClInclude Include="Python\PyScriptingBackend.h" />
     <ClInclude Include="Python\Utils\as_py_func.h" />
     <ClInclude Include="Python\Utils\convert.h" />
