@@ -9,7 +9,7 @@ def get_script_dir() -> str:
 
 def open_dir() -> str:
     """
-    Promtps the user to open a file.
+    Prompts the user to open a file.
 
     :return: value as string
     """
@@ -22,7 +22,7 @@ def stop_framedump() -> None:
 
 def is_framedumping() -> bool:
     """
-    Gets if a framedump is occuring.
+    Checks if a framedump is occuring.
 
     :return: value as bool
     """
@@ -35,7 +35,7 @@ def stop_audiodump() -> None:
 
 def is_audiodumping() -> bool:
     """
-    Gets if an audiodump is occuring.
+    Checks if an audiodump is occuring.
 
     :return: value as bool
     """

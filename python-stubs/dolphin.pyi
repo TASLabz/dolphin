@@ -5,7 +5,7 @@ intuitive way. For example, people can then do this:
     from dolphin import event, memory
 instead of:
     import dolphin_event as event
-    import dolphin_memory as memory.
+    import dolphin_memory as memory
 
 Valid:
   import dolphin
