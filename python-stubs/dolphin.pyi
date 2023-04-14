@@ -15,7 +15,7 @@ Valid:
 Invalid:
   import dolphin.event
   from dolphin.event import ...
-"""
+"""  # noqa: D400,D415 # Tries to add a . on an import example
 import dolphin_event as event
 import dolphin_memory as memory
 import dolphin_gui as gui

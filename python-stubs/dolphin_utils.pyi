@@ -2,7 +2,8 @@
 
 def get_script_dir() -> str:
     """
-    Returns the path to the Scripts directory, which is found in the Load folder inside of the user directory by default.
+    Returns the path to the Scripts directory, \
+        which is found in the Load folder inside of the user directory by default.
 
     :return: value as string
     """

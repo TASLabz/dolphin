@@ -12,7 +12,7 @@
 # D401:   pydocstyle: non-imperative-mood
 echo
 echo Run Ruff
-ruff python-stubs --fix --extend-select=PYI,N,Q,D --ignore=PYI021,D1,D203,D205,D212,D401
+ruff python-stubs --fix --line-length=100 --extend-select=PYI,N,Q,D --ignore=PYI021,D1,D203,D205,D212,D401
 
 echo
 echo Run Black

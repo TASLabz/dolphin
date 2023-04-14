@@ -41,8 +41,10 @@ class _SaveStateCallback(Protocol):
         """
         Example callback stub for on_savestatesave and/or on_savestateload.
 
-        :param is_slot: true if save/load was with a savestate slot, false if save/load was from a file
-        :param slot: the slot the save/load occurred to/from. Should be disregarded if is_slot is false
+        :param is_slot: true if save/load was with a savestate slot, \
+            false if save/load was from a file
+        :param slot: the slot the save/load occurred to/from. \
+            Should be disregarded if is_slot is false
         """
 
 def on_savestatesave(callback: _SaveStateCallback | None) -> None:
