@@ -81,9 +81,9 @@ def read_f64(addr: int, /) -> float:
     """
 
 def invalidate_icache(addr: int, size: int, /) -> None:
-     """
-     Invalidates JIT cached code between the address and address + size, forcing the JIT to refetch instructions instead of executing from its cache.
-   
+    """
+    Invalidates JIT cached code between the address and address + size, forcing the JIT to refetch instructions instead of executing from its cache.
+
     :param addr: memory address to start invalidation at
     :param size: size of the cache as integer
     """
