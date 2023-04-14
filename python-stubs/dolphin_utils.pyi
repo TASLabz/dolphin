@@ -2,7 +2,7 @@
 
 def get_script_dir() -> str:
     """
-    Gets the path to the Scripts dir.
+    Returns the path to the Scripts directory, usually found in `(Dolphin User Directory)/Load/Scripts`.
 
     :return: value as string
     """
