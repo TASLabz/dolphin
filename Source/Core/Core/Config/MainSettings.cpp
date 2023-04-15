@@ -256,7 +256,7 @@ const Info<int> MAIN_RENDER_WINDOW_HEIGHT{{System::Main, "Display", "RenderWindo
 const Info<bool> MAIN_RENDER_WINDOW_AUTOSIZE{{System::Main, "Display", "RenderWindowAutoSize"},
                                              false};
 const Info<bool> MAIN_RENDER_WINDOW_LOCK_RIGHT{{System::Main, "Display", "RenderWindowLockRight"},
-                                             true};
+                                               true};
 const Info<bool> MAIN_KEEP_WINDOW_ON_TOP{{System::Main, "Display", "KeepWindowOnTop"}, false};
 const Info<bool> MAIN_DISABLE_SCREENSAVER{{System::Main, "Display", "DisableScreenSaver"}, true};
 
@@ -395,6 +395,10 @@ const Info<std::string> MAIN_THEME_NAME{{System::Main, "Interface", "ThemeName"}
                                         DEFAULT_THEME_DIR};
 const Info<bool> MAIN_PAUSE_ON_FOCUS_LOST{{System::Main, "Interface", "PauseOnFocusLost"}, false};
 const Info<bool> MAIN_ENABLE_DEBUGGING{{System::Main, "Interface", "DebugModeEnabled"}, false};
+const Info<int> MAIN_IMGUI_FONT_SIZE{{System::Main, "Interface", "ImguiFontSize"}, 14};
+const Info<std::string> MAIN_IMGUI_FONT{{System::Main, "Interface", "ImguiFont"}, "Default"};
+const Info<OutlineRes> MAIN_IMGUI_OUTLINE_RES{{System::Main, "Interface", "ImguiOutline"},
+                                              OutlineRes::None};
 
 // Main.Analytics
 

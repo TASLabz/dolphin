@@ -169,7 +169,9 @@ protected:
   static void InvalidateConstants();
 
   // Prepares the buffer for the next batch of vertices.
-  virtual void ResetBuffer(u32 vertex_stride);
+  // You may use up to the number of vertices and indices in the request
+  virtual void ResetBuffer(u32 vertex_stride, u32 nvertices = MAX_PRIMITIVES_PER_COMMAND,
+                           u32 nindices = MAXIBUFFERSIZE);
 
   // Commits/uploads the current batch of vertices.
   virtual void CommitBuffer(u32 num_vertices, u32 vertex_stride, u32 num_indices,

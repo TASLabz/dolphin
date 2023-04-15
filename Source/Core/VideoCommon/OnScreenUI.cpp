@@ -4,6 +4,7 @@
 #include "VideoCommon/OnScreenUI.h"
 
 #include "Common/EnumMap.h"
+#include "Common/FileUtil.h"
 #include "Common/Profiler.h"
 #include "Common/Timer.h"
 
@@ -55,6 +56,7 @@ bool OnScreenUI::Initialize(u32 width, u32 height, float scale)
 
   // Don't create an ini file. TODO: Do we want this in the future?
   ImGui::GetIO().IniFilename = nullptr;
+  ImGui::GetIO().BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
   SetScale(scale);
   ImGui::GetStyle().WindowRounding = 7.0f;
 
@@ -73,6 +75,17 @@ bool OnScreenUI::Initialize(u32 width, u32 height, float scale)
   // Font texture(s).
   {
     ImGuiIO& io = ImGui::GetIO();
+    if (Config::Get(Config::MAIN_IMGUI_FONT) != "Default")
+    {
+      std::string ttfPath =
+          File::GetUserPath(D_LOAD_IDX) + "Fonts/" + Config::Get(Config::MAIN_IMGUI_FONT);
+      API::g_font = io.Fonts->AddFontFromFileTTF(
+          ttfPath.c_str(), static_cast<float>(Config::Get(Config::MAIN_IMGUI_FONT_SIZE)));
+    }
+    else
+    {
+      API::g_font = io.Fonts->AddFontDefault();
+    }
     u8* font_tex_pixels;
     int font_tex_width, font_tex_height;
     io.Fonts->GetTexDataAsRGBA32(&font_tex_pixels, &font_tex_width, &font_tex_height);
@@ -247,7 +260,7 @@ void OnScreenUI::DrawImGui()
               static_cast<int>(cmd.ClipRect.z), static_cast<int>(cmd.ClipRect.w)),
           g_gfx->GetCurrentFramebuffer()));
       g_gfx->SetTexture(0, reinterpret_cast<const AbstractTexture*>(cmd.TextureId));
-      g_gfx->DrawIndexed(base_index, cmd.ElemCount, base_vertex);
+      g_gfx->DrawIndexed(base_index, cmd.ElemCount, base_vertex + cmd.VtxOffset);
       base_index += cmd.ElemCount;
     }
   }

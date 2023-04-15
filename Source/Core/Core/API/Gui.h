@@ -4,10 +4,10 @@
 
 #pragma once
 
+#include <functional>
 #include <imgui.h>
 #include <string>
 #include <vector>
-#include <functional>
 
 #include "Common/CommonTypes.h"
 
@@ -16,6 +16,7 @@ using Vec2f = ImVec2;
 namespace API
 {
 
+static ImFont* g_font;
 class Gui
 {
 public:
@@ -28,13 +29,16 @@ public:
 
   Vec2f GetDisplaySize();
   void DrawLine(const Vec2f a, const Vec2f b, u32 color, float thickness = 1.0f);
-  void DrawRect(const Vec2f a, const Vec2f b, u32 color, float rounding = 0.0f, float thickness = 1.0f);
+  void DrawRect(const Vec2f a, const Vec2f b, u32 color, float rounding = 0.0f,
+                float thickness = 1.0f);
   void DrawRectFilled(const Vec2f a, const Vec2f b, u32 color, float rounding = 0.0f);
-  void DrawQuad(const Vec2f a, const Vec2f b, const Vec2f c, const Vec2f d, u32 color, float thickness = 1.0f);
+  void DrawQuad(const Vec2f a, const Vec2f b, const Vec2f c, const Vec2f d, u32 color,
+                float thickness = 1.0f);
   void DrawQuadFilled(const Vec2f a, const Vec2f b, const Vec2f c, const Vec2f d, u32 color);
   void DrawTriangle(const Vec2f a, const Vec2f b, const Vec2f c, u32 color, float thickness = 1.0f);
   void DrawTriangleFilled(const Vec2f a, const Vec2f b, const Vec2f c, u32 color);
-  void DrawCircle(const Vec2f center, float radius, u32 color, int num_segments = 12, float thickness = 1.0f);
+  void DrawCircle(const Vec2f center, float radius, u32 color, int num_segments = 12,
+                  float thickness = 1.0f);
   void DrawCircleFilled(const Vec2f center, float radius, u32 color, int num_segments = 12);
   void DrawText(const Vec2f pos, u32 color, std::string text);
   void DrawPolyline(const std::vector<Vec2f> points, u32 color, bool closed, float thickness);

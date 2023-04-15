@@ -160,13 +160,14 @@ GLuint VertexManager::GetIndexBufferHandle() const
   return m_index_buffer->m_buffer;
 }
 
-void VertexManager::ResetBuffer(u32 vertex_stride)
+void VertexManager::ResetBuffer(u32 vertex_stride, u32 num_vertices, u32 num_indices)
 {
   CheckBufferBinding();
 
-  auto buffer = m_vertex_buffer->Map(MAXVBUFFERSIZE, vertex_stride);
+  const u32 size = vertex_stride * num_vertices;
+  auto buffer = m_vertex_buffer->Map(size, vertex_stride);
   m_cur_buffer_pointer = m_base_buffer_pointer = buffer.first;
-  m_end_buffer_pointer = buffer.first + MAXVBUFFERSIZE;
+  m_end_buffer_pointer = buffer.first + size;
 
   buffer = m_index_buffer->Map(MAXIBUFFERSIZE * sizeof(u16));
   m_index_generator.Start(reinterpret_cast<u16*>(buffer.first));

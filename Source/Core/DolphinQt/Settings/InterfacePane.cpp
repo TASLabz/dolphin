@@ -10,6 +10,7 @@
 #include <QGroupBox>
 #include <QLabel>
 #include <QRadioButton>
+#include <QSlider>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -192,6 +193,49 @@ void InterfacePane::CreateInGame()
   m_checkbox_lock_mouse->setToolTip(tr("Will lock the Mouse Cursor to the Render Widget as long as "
                                        "it has focus. You can set a hotkey to unlock it."));
 
+  auto* imgui_groupbox = new QGroupBox(tr("On-Screen Text Config"));
+  auto* imgui_config_layout = new QFormLayout;
+  imgui_config_layout->setFormAlignment(Qt::AlignLeft | Qt::AlignTop);
+  imgui_config_layout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+  m_imgui_font_label =
+      new QLabel(tr("Font Size (%1 px): ").arg(Config::Get(Config::MAIN_IMGUI_FONT_SIZE)));
+  imgui_groupbox->setLayout(imgui_config_layout);
+  m_main_layout->addWidget(imgui_groupbox);
+
+  m_imgui_font_size_slider = new QSlider(Qt::Horizontal);
+  m_imgui_font_size_slider->setRange(8, 40);
+  m_imgui_font_size_slider->setValue(Config::Get(Config::MAIN_IMGUI_FONT_SIZE));
+
+  m_imgui_font_combobox = new QComboBox;
+  m_imgui_font_combobox->addItem(tr("Default"));
+
+  // Search Fonts
+  auto font_search_results = Common::DoFileSearch({File::GetUserPath(D_LOAD_IDX) + "Fonts"});
+  for (const std::string& path : font_search_results)
+  {
+    const QString qt_name = QString::fromStdString(PathToFileName(path));
+    m_imgui_font_combobox->addItem(qt_name);
+  }
+
+  int index =
+      m_imgui_font_combobox->findText(QString::fromStdString(Config::Get(Config::MAIN_IMGUI_FONT)));
+  if (index != -1)
+  {
+    m_imgui_font_combobox->setCurrentIndex(index);
+  }
+
+  m_imgui_outline_combobox = new QComboBox;
+  m_imgui_outline_combobox->addItem(tr("None"));
+  m_imgui_outline_combobox->addItem(tr("Partial Quality (thin)"));
+  m_imgui_outline_combobox->addItem(tr("Partial Quality (thick)"));
+  m_imgui_outline_combobox->addItem(tr("Full Quality"));
+  m_imgui_outline_combobox->setCurrentIndex(
+      static_cast<int>(Config::Get(Config::MAIN_IMGUI_OUTLINE_RES)));
+
+  imgui_config_layout->addRow(tr("Font: "), m_imgui_font_combobox);
+  imgui_config_layout->addRow(m_imgui_font_label, m_imgui_font_size_slider);
+  imgui_config_layout->addRow(tr("Outline Resolution: "), m_imgui_outline_combobox);
+
   mouse_groupbox->setLayout(m_vboxlayout_hide_mouse);
   groupbox_layout->addWidget(m_checkbox_top_window);
   groupbox_layout->addWidget(m_checkbox_confirm_on_stop);
@@ -235,6 +279,21 @@ void InterfacePane::ConnectLayout()
   connect(m_checkbox_lock_mouse, &QCheckBox::toggled, &Settings::Instance(),
           &Settings::SetLockCursor);
   connect(m_checkbox_use_userstyle, &QCheckBox::toggled, this, &InterfacePane::OnSaveConfig);
+  connect(m_imgui_font_size_slider, &QSlider::valueChanged, [this](int font_size) {
+    Config::SetBaseOrCurrent(Config::MAIN_IMGUI_FONT_SIZE, font_size);
+    m_imgui_font_label->setText(
+        tr("Font Size (%1 px): ").arg(Config::Get(Config::MAIN_IMGUI_FONT_SIZE)));
+  });
+  connect(m_imgui_font_combobox, &QComboBox::currentIndexChanged, this, [this](int index) {
+    Config::SetBaseOrCurrent(Config::MAIN_IMGUI_FONT,
+                             m_imgui_font_combobox->itemText(index).toStdString());
+  });
+
+  connect(m_imgui_outline_combobox, &QComboBox::currentIndexChanged, this, [this](int index) {
+    Config::SetBaseOrCurrent(
+        Config::MAIN_IMGUI_OUTLINE_RES,
+        static_cast<Config::OutlineRes>(m_imgui_outline_combobox->currentIndex()));
+  });
 }
 
 void InterfacePane::LoadConfig()

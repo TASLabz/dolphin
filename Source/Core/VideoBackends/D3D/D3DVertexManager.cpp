@@ -207,8 +207,12 @@ bool VertexManager::UploadTexelBuffer(const void* data, u32 data_size, TexelBuff
   return true;
 }
 
-void VertexManager::ResetBuffer(u32 vertex_stride)
+void VertexManager::ResetBuffer(u32 vertex_stride, u32 num_vertices, u32 num_indices)
 {
+ if (m_cpu_vertex_buffer.size() < vertex_stride * num_vertices) [[unlikely]]
+   m_cpu_vertex_buffer.resize(vertex_stride * num_vertices);
+ if (m_cpu_index_buffer.size() < num_indices) [[unlikely]]
+   m_cpu_index_buffer.resize(num_indices);
   m_base_buffer_pointer = m_cpu_vertex_buffer.data();
   m_cur_buffer_pointer = m_base_buffer_pointer;
   m_end_buffer_pointer = m_base_buffer_pointer + m_cpu_vertex_buffer.size();

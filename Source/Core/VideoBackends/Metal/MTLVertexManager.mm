@@ -54,13 +54,13 @@ bool Metal::VertexManager::UploadTexelBuffer(const void* data, u32 data_size,
   return true;
 }
 
-void Metal::VertexManager::ResetBuffer(u32 vertex_stride)
+void Metal::VertexManager::ResetBuffer(u32 vertex_stride, u32 num_vertices, u32 num_indices)
 {
-  const u32 max_vertex_size = 65535 * vertex_stride;
+  const u32 max_vertex_size = num_vertices * vertex_stride;
   const u32 vertex_alloc = max_vertex_size + vertex_stride - 1;  // for alignment
   auto vertex = g_state_tracker->Preallocate(StateTracker::UploadBuffer::Vertex, vertex_alloc);
   auto index =
-      g_state_tracker->Preallocate(StateTracker::UploadBuffer::Index, MAXIBUFFERSIZE * sizeof(u16));
+      g_state_tracker->Preallocate(StateTracker::UploadBuffer::Index, num_indices * sizeof(u16));
 
   // Align the base vertex
   m_base_vertex = (vertex.second + vertex_stride - 1) / vertex_stride;

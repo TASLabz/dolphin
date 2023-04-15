@@ -311,8 +311,12 @@ auto VertexManagerBase::ResetFlushAspectRatioCount() -> FlushStatistics
   return result;
 }
 
-void VertexManagerBase::ResetBuffer(u32 vertex_stride)
+void VertexManagerBase::ResetBuffer(u32 vertex_stride, u32 num_vertices, u32 num_indices)
 {
+  if (m_cpu_vertex_buffer.size() < vertex_stride * num_vertices) [[unlikely]]
+    m_cpu_vertex_buffer.resize(vertex_stride * num_vertices);
+  if (m_cpu_index_buffer.size() < num_indices) [[unlikely]]
+    m_cpu_index_buffer.resize(num_indices);
   m_base_buffer_pointer = m_cpu_vertex_buffer.data();
   m_cur_buffer_pointer = m_cpu_vertex_buffer.data();
   m_end_buffer_pointer = m_base_buffer_pointer + m_cpu_vertex_buffer.size();
@@ -365,7 +369,7 @@ void VertexManagerBase::UploadUtilityVertices(const void* vertices, u32 vertex_s
   ASSERT(m_is_flushed);
 
   // Copy into the buffers usually used for GX drawing.
-  ResetBuffer(std::max(vertex_stride, 1u));
+  ResetBuffer(std::max(vertex_stride, 1u), std::max(num_vertices, 1u), std::max(num_indices, 1u));
   if (vertices)
   {
     const u32 copy_size = vertex_stride * num_vertices;

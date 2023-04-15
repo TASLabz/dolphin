@@ -141,13 +141,14 @@ void VertexManager::DestroyTexelBufferViews()
   }
 }
 
-void VertexManager::ResetBuffer(u32 vertex_stride)
+void VertexManager::ResetBuffer(u32 vertex_stride, u32 num_vertices, u32 num_indices)
 {
+  u32 vsize = vertex_stride * num_vertices;
+  u32 isize = sizeof(u16) * num_indices;
   // Attempt to allocate from buffers
   bool has_vbuffer_allocation =
-      m_vertex_stream_buffer->ReserveMemory(MAXVBUFFERSIZE, vertex_stride);
-  bool has_ibuffer_allocation =
-      m_index_stream_buffer->ReserveMemory(MAXIBUFFERSIZE * sizeof(u16), sizeof(u16));
+      m_vertex_stream_buffer->ReserveMemory(vsize, vertex_stride);
+  bool has_ibuffer_allocation = m_index_stream_buffer->ReserveMemory(isize, sizeof(u16));
   if (!has_vbuffer_allocation || !has_ibuffer_allocation)
   {
     // Flush any pending commands first, so that we can wait on the fences
@@ -156,10 +157,9 @@ void VertexManager::ResetBuffer(u32 vertex_stride)
 
     // Attempt to allocate again, this may cause a fence wait
     if (!has_vbuffer_allocation)
-      has_vbuffer_allocation = m_vertex_stream_buffer->ReserveMemory(MAXVBUFFERSIZE, vertex_stride);
+      has_vbuffer_allocation = m_vertex_stream_buffer->ReserveMemory(vsize, vertex_stride);
     if (!has_ibuffer_allocation)
-      has_ibuffer_allocation =
-          m_index_stream_buffer->ReserveMemory(MAXIBUFFERSIZE * sizeof(u16), sizeof(u16));
+      has_ibuffer_allocation = m_index_stream_buffer->ReserveMemory(isize, sizeof(u16));
 
     // If we still failed, that means the allocation was too large and will never succeed, so panic
     if (!has_vbuffer_allocation || !has_ibuffer_allocation)
@@ -168,7 +168,7 @@ void VertexManager::ResetBuffer(u32 vertex_stride)
 
   // Update pointers
   m_base_buffer_pointer = m_vertex_stream_buffer->GetHostPointer();
-  m_end_buffer_pointer = m_vertex_stream_buffer->GetCurrentHostPointer() + MAXVBUFFERSIZE;
+  m_end_buffer_pointer = m_vertex_stream_buffer->GetCurrentHostPointer() + vsize;
   m_cur_buffer_pointer = m_vertex_stream_buffer->GetCurrentHostPointer();
   m_index_generator.Start(reinterpret_cast<u16*>(m_index_stream_buffer->GetCurrentHostPointer()));
 }

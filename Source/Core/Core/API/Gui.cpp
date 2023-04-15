@@ -4,9 +4,11 @@
 
 #include "Gui.h"
 
+#include "Core/Config/MainSettings.h"
 #include "VideoCommon/OnScreenDisplay.h"
 
-#define GUI_DRAW_DEFERRED(draw_call) (m_draw_calls.emplace_back([=](ImDrawList* draw_list) {draw_list->draw_call;}))
+#define GUI_DRAW_DEFERRED(draw_call)                                                               \
+  (m_draw_calls.emplace_back([=](ImDrawList* draw_list) { draw_list->draw_call; }))
 
 namespace API
 {
@@ -34,7 +36,7 @@ void Gui::Render()
   ImGui::SetNextWindowPos(ImVec2{0, 0});
   ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
   static auto flags =
-    ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoDecoration;
+      ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoDecoration;
 
   ImGui::Begin("gui api", nullptr, flags);
   ImDrawList* draw_list = ImGui::GetWindowDrawList();
@@ -56,7 +58,7 @@ void Gui::DrawLine(const Vec2f a, const Vec2f b, u32 color, float thickness)
 void Gui::DrawRect(const Vec2f a, const Vec2f b, u32 color, float rounding, float thickness)
 {
   GUI_DRAW_DEFERRED(
-    AddRect(a, b, ARGBToABGR(color), rounding, ImDrawFlags_RoundCornersAll, thickness));
+      AddRect(a, b, ARGBToABGR(color), rounding, ImDrawFlags_RoundCornersAll, thickness));
 }
 
 void Gui::DrawRectFilled(const Vec2f a, const Vec2f b, u32 color, float rounding)
@@ -64,7 +66,8 @@ void Gui::DrawRectFilled(const Vec2f a, const Vec2f b, u32 color, float rounding
   GUI_DRAW_DEFERRED(AddRectFilled(a, b, ARGBToABGR(color), rounding, ImDrawFlags_RoundCornersAll));
 }
 
-void Gui::DrawQuad(const Vec2f a, const Vec2f b, const Vec2f c, const Vec2f d, u32 color, float thickness)
+void Gui::DrawQuad(const Vec2f a, const Vec2f b, const Vec2f c, const Vec2f d, u32 color,
+                   float thickness)
 {
   GUI_DRAW_DEFERRED(AddQuad(a, b, c, d, ARGBToABGR(color), thickness));
 }
@@ -94,15 +97,62 @@ void Gui::DrawCircleFilled(const Vec2f center, float radius, u32 color, int num_
   GUI_DRAW_DEFERRED(AddCircleFilled(center, radius, ARGBToABGR(color), num_segments));
 }
 
+static void CreateThickOutline(const Vec2f& pos, u32 color, std::string& text)
+{
+  GUI_DRAW_DEFERRED(AddText(API::g_font, Config::Get(Config::MAIN_IMGUI_FONT_SIZE),
+                            ImVec2(pos.x + 1, pos.y + 1), ARGBToABGR(color ^ 0x00FFFFFF),
+                            text.c_str()));
+  GUI_DRAW_DEFERRED(AddText(API::g_font, Config::Get(Config::MAIN_IMGUI_FONT_SIZE),
+                            ImVec2(pos.x - 1, pos.y - 1), ARGBToABGR(color ^ 0x00FFFFFF),
+                            text.c_str()));
+  GUI_DRAW_DEFERRED(AddText(API::g_font, Config::Get(Config::MAIN_IMGUI_FONT_SIZE),
+                            ImVec2(pos.x + 1, pos.y - 1), ARGBToABGR(color ^ 0x00FFFFFF),
+                            text.c_str()));
+  GUI_DRAW_DEFERRED(AddText(API::g_font, Config::Get(Config::MAIN_IMGUI_FONT_SIZE),
+                            ImVec2(pos.x - 1, pos.y + 1), ARGBToABGR(color ^ 0x00FFFFFF),
+                            text.c_str()));
+}
+
+static void CreateThinOutline(const Vec2f& pos, u32 color, std::string& text)
+{
+  GUI_DRAW_DEFERRED(AddText(API::g_font, Config::Get(Config::MAIN_IMGUI_FONT_SIZE),
+                            ImVec2(pos.x + 1, pos.y), ARGBToABGR(color ^ 0x00FFFFFF),
+                            text.c_str()));
+  GUI_DRAW_DEFERRED(AddText(API::g_font, Config::Get(Config::MAIN_IMGUI_FONT_SIZE),
+                            ImVec2(pos.x - 1, pos.y), ARGBToABGR(color ^ 0x00FFFFFF),
+                            text.c_str()));
+  GUI_DRAW_DEFERRED(AddText(API::g_font, Config::Get(Config::MAIN_IMGUI_FONT_SIZE),
+                            ImVec2(pos.x, pos.y - 1), ARGBToABGR(color ^ 0x00FFFFFF),
+                            text.c_str()));
+  GUI_DRAW_DEFERRED(AddText(API::g_font, Config::Get(Config::MAIN_IMGUI_FONT_SIZE),
+                            ImVec2(pos.x, pos.y + 1), ARGBToABGR(color ^ 0x00FFFFFF),
+                            text.c_str()));
+}
+
 void Gui::DrawText(const Vec2f pos, u32 color, std::string text)
 {
-  GUI_DRAW_DEFERRED(AddText(pos, ARGBToABGR(color), text.c_str()));
+  switch (Config::Get(Config::MAIN_IMGUI_OUTLINE_RES))
+  {
+  case Config::OutlineRes::Full:
+    CreateThinOutline(pos, color, text);
+    CreateThickOutline(pos, color, text);
+    break;
+  case Config::OutlineRes::Thick:
+    CreateThickOutline(pos, color, text);
+    break;
+  case Config::OutlineRes::Thin:
+    CreateThinOutline(pos, color, text);
+    break;
+  }
+
+  GUI_DRAW_DEFERRED(AddText(API::g_font, Config::Get(Config::MAIN_IMGUI_FONT_SIZE), pos,
+                            ARGBToABGR(color), text.c_str()));
 }
 
 void Gui::DrawPolyline(const std::vector<Vec2f> points, u32 color, bool closed, float thickness)
 {
   GUI_DRAW_DEFERRED(
-    AddPolyline(points.data(), (int)points.size(), color, ARGBToABGR(color), thickness));
+      AddPolyline(points.data(), (int)points.size(), color, ARGBToABGR(color), thickness));
 }
 
 void Gui::DrawConvexPolyFilled(const std::vector<Vec2f> points, u32 color)

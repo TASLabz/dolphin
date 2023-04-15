@@ -9,6 +9,7 @@ class QCheckBox;
 class QComboBox;
 class QLabel;
 class QRadioButton;
+class QSlider;
 class QVBoxLayout;
 
 class InterfacePane final : public QWidget
@@ -51,4 +52,9 @@ private:
   QRadioButton* m_radio_cursor_visible_never;
   QRadioButton* m_radio_cursor_visible_always;
   QCheckBox* m_checkbox_lock_mouse;
+
+  QSlider* m_imgui_font_size_slider;
+  QLabel* m_imgui_font_label;
+  QComboBox* m_imgui_font_combobox;
+  QComboBox* m_imgui_outline_combobox;
 };

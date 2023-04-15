@@ -227,6 +227,17 @@ extern const Info<bool> MAIN_ABORT_ON_PANIC_ALERT;
 extern const Info<bool> MAIN_OSD_MESSAGES;
 extern const Info<bool> MAIN_SKIP_NKIT_WARNING;
 extern const Info<bool> MAIN_CONFIRM_ON_STOP;
+extern const Info<int> MAIN_IMGUI_FONT_SIZE;
+extern const Info<std::string> MAIN_IMGUI_FONT;
+
+enum class OutlineRes
+{
+  None,
+  Thin,
+  Thick,
+  Full
+};
+extern const Info<OutlineRes> MAIN_IMGUI_OUTLINE_RES;
 
 enum class ShowCursor
 {
