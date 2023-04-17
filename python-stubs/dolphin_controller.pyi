@@ -6,6 +6,7 @@ No acceleration or other extensions data yet.
 """
 from typing import TypedDict, type_check_only
 
+
 @type_check_only
 class GCInputs(TypedDict):
     Left: bool
@@ -30,6 +31,7 @@ class GCInputs(TypedDict):
     AnalogB: int  # 0-255
     Connected: bool
 
+
 @type_check_only
 class WiiInputs(TypedDict):
     Left: bool
@@ -44,11 +46,13 @@ class WiiInputs(TypedDict):
     B: bool
     Home: bool
 
+
 class NunchuckInputs(TypedDict):
     C: bool
     Z: bool
     StickX: int  # 0-255, 128 is neutral
     StickY: int  # 0-255, 128 is neutral
+
 
 def get_gc_buttons(controller_id: int, /) -> GCInputs:
     """
@@ -57,6 +61,7 @@ def get_gc_buttons(controller_id: int, /) -> GCInputs:
     :param controller_id: 0-based index of the controller
     :return: dictionary describing the current input map
     """
+
 
 def set_gc_buttons(controller_id: int, inputs: GCInputs, /) -> None:
     """
@@ -67,6 +72,7 @@ def set_gc_buttons(controller_id: int, inputs: GCInputs, /) -> None:
     :param inputs: dictionary describing the input map
     """
 
+
 def get_wii_buttons(controller_id: int, /) -> WiiInputs:
     """
     Retrieves the current input map for the given Wii controller.
@@ -74,6 +80,7 @@ def get_wii_buttons(controller_id: int, /) -> WiiInputs:
     :param controller_id: 0-based index of the controller
     :return: dictionary describing the current input map
     """
+
 
 def set_wii_buttons(controller_id: int, inputs: WiiInputs, /) -> None:
     """
@@ -84,15 +91,10 @@ def set_wii_buttons(controller_id: int, inputs: WiiInputs, /) -> None:
     :param inputs: dictionary describing the input map
     """
 
+
 def set_wii_ircamera_transform(
-    controller_id: int,
-    x: float,
-    y: float,
-    z: float = -2,
-    pitch: float = 0,
-    yaw: float = 0,
-    roll: float = 0,
-    /,
+    controller_id: int, x: float, y: float,
+    z: float = -2, pitch: float = 0, yaw: float = 0, roll: float = 0, /,
 ) -> None:
     """
     Places the simulated IR camera at the specified location
@@ -111,6 +113,7 @@ def set_wii_ircamera_transform(
     :param roll: roll of the simulated IR camera in radians.
     """
 
+
 def get_nunchuck_buttons(controller_id: int, /) -> NunchuckInputs:
     """
     Retrieves the current input map for the given Nunchuck extension.
@@ -118,6 +121,7 @@ def get_nunchuck_buttons(controller_id: int, /) -> NunchuckInputs:
     :param controller_id: 0-based index of the controller
     :return: dictionary describing the current input map
     """
+
 
 def set_nunchuck_buttons(controller_id: int, inputs: NunchuckInputs, /) -> None:
     """

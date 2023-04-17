@@ -9,6 +9,7 @@ from typing_extensions import TypeAlias
 
 Position: TypeAlias = tuple[float, float]
 
+
 def add_osd_message(message: str, duration_ms: int = 2000, color: int = 0xFFFFFF30) -> None:
     """
     Adds a new message to the on-screen-display.
@@ -18,14 +19,18 @@ def add_osd_message(message: str, duration_ms: int = 2000, color: int = 0xFFFFFF
     :param color: color of the message text as an int
     """
 
+
 def clear_osd_messages() -> None:
     """Clear all on-screen-display messages."""
+
 
 def get_display_size() -> tuple[float, float]:
     """:return: The current display size in pixels."""
 
+
 def draw_line(a: Position, b: Position, color: int, thickness: float = 1) -> None:
     """Draws a line from a to b."""
+
 
 def draw_rect(
     a: Position,
@@ -36,8 +41,10 @@ def draw_rect(
 ) -> None:
     """Draws a hollow rectangle from a (upper left) to b (lower right)."""
 
+
 def draw_rect_filled(a: Position, b: Position, color: int, rounding: float = 0) -> None:
     """Draws a filled rectangle from a (upper left) to b (lower right)."""
+
 
 def draw_quad(
     a: Position,
@@ -52,14 +59,18 @@ def draw_quad(
     Points should be defined in clockwise order.
     """
 
+
 def draw_quad_filled(a: Position, b: Position, c: Position, d: Position, color: int) -> None:
     """Draws a filled quad through the points a, b, c and d."""
+
 
 def draw_triangle(a: Position, b: Position, c: Position, color: int, thickness: float = 1) -> None:
     """Draws a hollow triangle through the points a, b and c."""
 
+
 def draw_triangle_filled(a: Position, b: Position, c: Position, color: int) -> None:
     """Draws a filled triangle through the points a, b and c."""
+
 
 def draw_circle(
     center: Position,
@@ -73,10 +84,9 @@ def draw_circle(
     If num_segments is set to None (default), a sensible default is used.
     """
 
+
 def draw_circle_filled(
-    center: Position,
-    radius: float,
-    color: int,
+    center: Position, radius: float, color: int,
     num_segments: int | None = None,
 ) -> None:
     """
@@ -84,8 +94,10 @@ def draw_circle_filled(
     If num_segments is set to None (default), a sensible default is used.
     """
 
+
 def draw_text(pos: Position, color: int, text: str) -> None:
     """Draws text at a fixed position."""
+
 
 def draw_polyline(
     points: list[Position],
@@ -94,6 +106,7 @@ def draw_polyline(
     thickness: float = 1,
 ) -> None:
     """Draws a line through a list of points."""
+
 
 def draw_convex_poly_filled(points: list[Position], color: int) -> None:
     """

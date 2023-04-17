@@ -15,8 +15,14 @@ echo Run Ruff
 ruff python-stubs --fix --line-length=100 --extend-select=PYI,N,Q,D --ignore=PYI021,D1,D203,D205,D212,D401
 
 echo
-echo Run Black
-black python-stubs --line-length=100
+echo Run autopep8
+# --recursive does not work with ".pyi" files, so we have to feed files individually
+autopep8 $(git ls-files 'python-stubs/**.py*') --in-place --recursive --aggressive --aggressive --aggressive --max-line-length=100
+
+echo
+echo Run add-trailing-comma
+# This has been requested to Ruff: https://github.com/charliermarsh/ruff/issues/3713
+add-trailing-comma $(git ls-files 'python-stubs/**.py*') --py36-plus
 
 echo
 echo Run mypy

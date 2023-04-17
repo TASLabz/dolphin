@@ -1,4 +1,5 @@
-black>=23.1.0
+add-trailing-comma>=2.4.0
+autopep8>=2.0.0
 ruff>=0.0.261
 mypy>=1.0.0
 typing-extensions

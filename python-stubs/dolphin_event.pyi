@@ -7,11 +7,14 @@ the callback's signature. See https://www.python.org/dev/peps/pep-0544/#callback
 from collections.abc import Callable
 from typing import Protocol, type_check_only
 
+
 def on_frameadvance(callback: Callable[[], None] | None) -> None:
     """Registers a callback to be called every time the game has rendered a new frame."""
 
+
 async def frameadvance() -> None:
     """Awaitable event that completes once the game has rendered a new frame."""
+
 
 @type_check_only
 class _MemorybreakpointCallback(Protocol):
@@ -24,6 +27,7 @@ class _MemorybreakpointCallback(Protocol):
         :param value: new value at the given address
         """
 
+
 def on_memorybreakpoint(callback: _MemorybreakpointCallback | None) -> None:
     """
     Registers a callback to be called every time a previously added memory breakpoint is hit.
@@ -32,8 +36,10 @@ def on_memorybreakpoint(callback: _MemorybreakpointCallback | None) -> None:
     :return:
     """
 
+
 async def memorybreakpoint() -> tuple[bool, int, int]:
     """Awaitable event that completes once a previously added memory breakpoint is hit."""
+
 
 @type_check_only
 class _SaveStateCallback(Protocol):
@@ -47,6 +53,7 @@ class _SaveStateCallback(Protocol):
             Should be disregarded if is_slot is false
         """
 
+
 def on_savestatesave(callback: _SaveStateCallback | None) -> None:
     """
     Registers a callback to be called every time a savestate is saved.
@@ -55,8 +62,10 @@ def on_savestatesave(callback: _SaveStateCallback | None) -> None:
     :return:
     """
 
+
 async def savestatesave() -> tuple[bool, int]:
     """Awaitable event that completes once a savestate is saved."""
+
 
 def on_savestateload(callback: _SaveStateCallback | None) -> None:
     """
@@ -66,8 +75,10 @@ def on_savestateload(callback: _SaveStateCallback | None) -> None:
     :return:
     """
 
+
 async def savestateload() -> tuple[bool, int]:
     """Awaitable event that completes once a savestate is loaded."""
+
 
 def system_reset() -> None:
     """Resets the emulation."""
