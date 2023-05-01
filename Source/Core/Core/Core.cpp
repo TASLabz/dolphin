@@ -892,6 +892,7 @@ void Callback_FramePresented(double actual_emulation_speed)
 // Called from VideoInterface::Update (CPU thread) at emulated field boundaries
 void Callback_NewField(Core::System& system)
 {
+  OnFrameBegin();
   if (s_frame_step)
   {
     // To ensure that s_stop_frame_step is up to date, wait for the GPU thread queue to empty,
