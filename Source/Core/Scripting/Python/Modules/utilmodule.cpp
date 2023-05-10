@@ -20,11 +20,7 @@ static std::string scriptDir;
 
 static PyObject* get_game_id(PyObject* module, PyObject* args)
 {
-  std::string gameID = SConfig::GetInstance().GetGameID();
-
-  PyObject* pyGameID = PyUnicode_FromString(gameID.c_str());
-
-  return pyGameID;
+  return Py_BuildValue("s", SConfig::GetInstance().GetGameID().c_str());
 }
 
 static PyObject* get_script_dir(PyObject* module, PyObject* args)
