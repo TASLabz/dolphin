@@ -38,7 +38,7 @@ Everything printed to `stdout` or `stderr` will then be visible in the log (View
 
 The API is organized as various python module aggregated into one module called `dolphin`.
 For example, to access the memory module, import it via `from dolphin import memory`.
-For comprehensive documentation of all API functions, please check out the **[dolphin module stubs](python-stubs/dolphin)**.
+For comprehensive documentation of all API functions, please check out the **[dolphin module stubs](python-stubs)**.
 The stub files serve as documentation for the API surface.
 
 Additionally, if you are using an IDE and place the `dolphin` stub module directory somewhere it gets recognized as a python module
