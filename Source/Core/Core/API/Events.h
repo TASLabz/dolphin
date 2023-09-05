@@ -66,7 +66,6 @@ using ListenerFuncPtr = void (*)(const T&);
 template <typename T>
 struct ListenerID
 {
-  bool operator==(const ListenerID& other) { return other.value == value; }
   u64 value;
 };
 
@@ -106,7 +105,7 @@ public:
   {
     for (auto it = m_listener_pairs.begin(); it != m_listener_pairs.end(); ++it)
     {
-      if (it->first == listener_id)
+      if (it->first.value == listener_id.value)
       {
         m_listener_pairs.erase(it);
         return true;
