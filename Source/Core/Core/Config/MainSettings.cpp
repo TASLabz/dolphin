@@ -398,7 +398,7 @@ const Info<bool> MAIN_ENABLE_DEBUGGING{{System::Main, "Interface", "DebugModeEna
 const Info<int> MAIN_IMGUI_FONT_SIZE{{System::Main, "Interface", "ImguiFontSize"}, 14};
 const Info<std::string> MAIN_IMGUI_FONT{{System::Main, "Interface", "ImguiFont"}, "Default"};
 const Info<OutlineRes> MAIN_IMGUI_OUTLINE_RES{{System::Main, "Interface", "ImguiOutline"},
-                                              OutlineRes::None};
+                                              OutlineRes::Off};
 
 // Main.Analytics
 

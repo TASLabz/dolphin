@@ -41,6 +41,8 @@ public:
                   float thickness = 1.0f);
   void DrawCircleFilled(const Vec2f center, float radius, u32 color, int num_segments = 12);
   void DrawText(const Vec2f pos, u32 color, std::string text);
+  void CreateThickOutline(const Vec2f& pos, u32 color, std::string& text);
+  void CreateThinOutline(const Vec2f& pos, u32 color, std::string& text);
   void DrawPolyline(const std::vector<Vec2f> points, u32 color, bool closed, float thickness);
   void DrawConvexPolyFilled(const std::vector<Vec2f> points, u32 color);
 

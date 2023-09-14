@@ -232,12 +232,12 @@ extern const Info<std::string> MAIN_IMGUI_FONT;
 
 enum class OutlineRes
 {
-  None,
+  Off,
   Thin,
   Thick,
   Full
 };
-extern const Info<OutlineRes> MAIN_IMGUI_OUTLINE_RES;
+extern const Info<Config::OutlineRes> MAIN_IMGUI_OUTLINE_RES;
 
 enum class ShowCursor
 {

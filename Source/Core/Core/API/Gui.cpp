@@ -7,8 +7,8 @@
 #include "Core/Config/MainSettings.h"
 #include "VideoCommon/OnScreenDisplay.h"
 
-#define GUI_DRAW_DEFERRED(draw_call)                                                               \
-  (m_draw_calls.emplace_back([=](ImDrawList* draw_list) { draw_list->draw_call; }))
+#define GUI_DRAW_DEFERRED(draw_call) \
+    m_draw_calls.emplace_back([=](ImDrawList* draw_list) { draw_list->draw_call; })
 
 namespace API
 {
@@ -97,7 +97,7 @@ void Gui::DrawCircleFilled(const Vec2f center, float radius, u32 color, int num_
   GUI_DRAW_DEFERRED(AddCircleFilled(center, radius, ARGBToABGR(color), num_segments));
 }
 
-static void CreateThickOutline(const Vec2f& pos, u32 color, std::string& text)
+void Gui::CreateThickOutline(const Vec2f& pos, u32 color, std::string& text)
 {
   GUI_DRAW_DEFERRED(AddText(API::g_font, Config::Get(Config::MAIN_IMGUI_FONT_SIZE),
                             ImVec2(pos.x + 1, pos.y + 1), ARGBToABGR(color ^ 0x00FFFFFF),
@@ -113,7 +113,7 @@ static void CreateThickOutline(const Vec2f& pos, u32 color, std::string& text)
                             text.c_str()));
 }
 
-static void CreateThinOutline(const Vec2f& pos, u32 color, std::string& text)
+void Gui::CreateThinOutline(const Vec2f& pos, u32 color, std::string& text)
 {
   GUI_DRAW_DEFERRED(AddText(API::g_font, Config::Get(Config::MAIN_IMGUI_FONT_SIZE),
                             ImVec2(pos.x + 1, pos.y), ARGBToABGR(color ^ 0x00FFFFFF),
