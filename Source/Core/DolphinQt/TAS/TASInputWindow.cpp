@@ -14,6 +14,7 @@
 #include <QSlider>
 #include <QSpinBox>
 #include <QVBoxLayout>
+#include <QEvent>
 
 #include "Common/CommonTypes.h"
 
@@ -82,6 +83,8 @@ TASInputWindow::TASInputWindow(QWidget* parent) : QDialog(parent)
 
   m_settings_box = new QGroupBox(tr("Settings"));
   m_settings_box->setLayout(settings_layout);
+
+  installEventFilter(this);
 }
 
 int TASInputWindow::GetTurboPressFrames() const
@@ -287,12 +290,19 @@ std::optional<ControlState> TASInputWindow::GetSpinBox(TASSpinBox* spin, int zer
   return (spin->GetValue() - zero) / scale;
 }
 
-void TASInputWindow::focusOutEvent(QFocusEvent* event)
+bool TASInputWindow::eventFilter(QObject* object, QEvent* event)
 {
-  Host::GetInstance()->SetTASInputFullFocus(false);
-}
+  if (event->type() == QEvent::WindowActivate)
+  {
+    Host::GetInstance()->SetTASInputFullFocus(true);
+    return true;
+  }
+    
+  else if (event->type() == QEvent::WindowDeactivate)
+  {
+    Host::GetInstance()->SetTASInputFullFocus(false);
+    return true;
+  }
 
-void TASInputWindow::focusInEvent(QFocusEvent* event)
-{
-  Host::GetInstance()->SetTASInputFullFocus(true);
+  return QDialog::eventFilter(object, event);
 }

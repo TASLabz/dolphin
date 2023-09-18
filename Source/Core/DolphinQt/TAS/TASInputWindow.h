@@ -49,9 +49,6 @@ public:
   int GetTurboReleaseFrames() const;
 
 protected:
-  void focusOutEvent(QFocusEvent* event) override;
-  void focusInEvent(QFocusEvent* event) override;
-
   TASCheckBox* CreateButton(const QString& text, std::string_view group_name,
                             std::string_view control_name, InputOverrider* overrider);
   TASStickBox* CreateStickInputs(const QString& text, std::string_view group_name,
@@ -84,4 +81,6 @@ private:
                                          ControlState controller_state);
   std::optional<ControlState> GetSpinBox(TASSpinBox* spin, int zero, ControlState controller_state,
                                          ControlState scale);
+
+  bool eventFilter(QObject* object, QEvent* event);
 };
