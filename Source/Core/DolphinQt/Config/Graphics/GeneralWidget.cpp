@@ -100,12 +100,10 @@ void GeneralWidget::CreateWidgets()
 
   m_options_layout->addWidget(m_render_main_window, 0, 0);
   m_options_layout->addWidget(m_autoadjust_window_size, 1, 0);
-
-  m_options_layout->addWidget(m_show_messages, 0, 1);
-
   m_options_layout->addWidget(m_lock_window_to_right, 2, 0);
 
-  m_options_layout->addWidget(m_show_ping, 3, 0);
+  m_options_layout->addWidget(m_show_messages, 0, 1);
+  m_options_layout->addWidget(m_show_ping, 1, 1);
 
   // Other
   auto* shader_compilation_box = new QGroupBox(tr("Shader Compilation"));
