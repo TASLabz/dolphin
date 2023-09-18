@@ -112,6 +112,7 @@ void ScriptsListModel::Restart(int index)
 void ScriptsListModel::Remove(int index)
 {
   beginRemoveRows(QModelIndex(), index, index);
+  delete Scripts::g_scripts[index].backend;
   Scripts::g_scripts.erase(Scripts::g_scripts.begin() + index);
   endRemoveRows();
 }

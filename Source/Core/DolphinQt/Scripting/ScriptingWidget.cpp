@@ -6,6 +6,8 @@
 #include <QVBoxLayout>
 #include <QHeaderView>
 #include <QCheckBox>
+#include <QEvent>
+#include <QKeyEvent>
 #include <QTextEdit>
 #include <QLabel>
 #include <QSplitter>
@@ -48,7 +50,7 @@ ScriptingWidget::ScriptingWidget(QWidget* parent)
   m_table_view->horizontalHeader()->hide();
   m_table_view->verticalHeader()->hide();
   m_table_view->setSelectionBehavior(QAbstractItemView::SelectRows);
-  m_table_view->setSelectionMode(QAbstractItemView::SingleSelection);
+  m_table_view->installEventFilter(this);
 
   // put in group box
   QGroupBox* scripts_group = new QGroupBox(tr("Loaded Scripts"));
@@ -68,9 +70,9 @@ ScriptingWidget::ScriptingWidget(QWidget* parent)
 
   connect(button_add_new, &QPushButton::clicked, this, &ScriptingWidget::AddNewScript);
   connect(button_reload_selected, &QPushButton::clicked, this,
-          &ScriptingWidget::RestartSelectedScript);
+          &ScriptingWidget::RestartSelectedScripts);
   connect(button_remove_selected, &QPushButton::clicked, this,
-          &ScriptingWidget::RemoveSelectedScript);
+          &ScriptingWidget::RemoveSelectedScripts);
 
   PopulateScripts();
 }
@@ -90,6 +92,27 @@ void ScriptingWidget::PopulateScripts()
   }
 };
 
+// Keyboard shortcuts for scripting table control
+bool ScriptingWidget::eventFilter(QObject* object, QEvent* event)
+{
+  if (event->type() == QEvent::KeyPress)
+  {
+    QKeyEvent* key_event = static_cast<QKeyEvent*>(event);
+    if (key_event->key() == Qt::Key_Delete)
+    {
+      RemoveSelectedScripts();
+      return true;
+    }
+    if (key_event->key() == Qt::Key_Return)
+    {
+      ToggleSelectedScripts();
+      return true;
+    }
+  }
+
+  return false;
+}
+
 void ScriptingWidget::AddNewScript()
 {
   if (Scripting::ScriptingBackend::PythonSubinterpretersDisabled() && m_scripts_model->rowCount() == 1)
@@ -108,7 +131,7 @@ void ScriptingWidget::AddNewScript()
   }
 }
 
-void ScriptingWidget::RestartSelectedScript()
+void ScriptingWidget::RestartSelectedScripts()
 {
   for (const QModelIndex& q_index : m_table_view->selectionModel()->selectedRows())
   {
@@ -116,15 +139,30 @@ void ScriptingWidget::RestartSelectedScript()
   }
 }
 
-void ScriptingWidget::RemoveSelectedScript()
+void ScriptingWidget::RemoveSelectedScripts()
 {
+  int count_deleted = 0;
   for (const QModelIndex& q_index : m_table_view->selectionModel()->selectedRows())
   {
-    m_scripts_model->Remove(q_index.row());
+    m_scripts_model->Remove(q_index.row() - count_deleted++);
   }
 }
 
 void ScriptingWidget::AddScript(std::string filename, bool enabled /* = false */)
 {
   m_scripts_model->Add(filename, enabled);
+}
+
+void ScriptingWidget::ToggleSelectedScripts()
+{
+  QModelIndexList index_list = m_table_view->selectionModel()->selectedRows();
+  for (const QModelIndex& q_index : index_list)
+  {
+    Qt::CheckState prev_state = (Qt::CheckState) m_scripts_model->data(q_index, Qt::CheckStateRole).toUInt();
+    m_scripts_model->setData(q_index, prev_state == Qt::Checked ? Qt::Unchecked : Qt::Checked,
+                             Qt::CheckStateRole);
+  }
+
+  m_scripts_model->dataChanged(index_list.first(), index_list.last(),
+                               QList<int>(Qt::CheckStateRole));
 }

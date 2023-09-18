@@ -16,11 +16,14 @@ public:
   ScriptingWidget(QWidget* parent = nullptr);
   void PopulateScripts();
   void AddNewScript();
-  void RestartSelectedScript();
-  void RemoveSelectedScript();
+  void RestartSelectedScripts();
+  void RemoveSelectedScripts();
+  void ToggleSelectedScripts();
   void AddScript(std::string filename, bool enabled = false);
 
 private:
+  bool eventFilter(QObject* object, QEvent* event);
+
   ScriptsListModel* m_scripts_model;
   QTableView* m_table_view;
 };
