@@ -775,22 +775,42 @@ void MMU::HostWrite_U64(const Core::CPUThreadGuard& guard, const u64 var, const 
   mmu.WriteToHardware<XCheckTLBFlag::NoException>(address + sizeof(u32), static_cast<u32>(var), 4);
 }
 
-s8 HostRead_S8(const Core::CPUThreadGuard& guard, const u32 address)
+void MMU::HostWrite_S8(const Core::CPUThreadGuard& guard, const u32 var, const u32 address)
+{
+  HostWrite_U8(guard, static_cast<s32>(var), address);
+}
+
+void MMU::HostWrite_S16(const Core::CPUThreadGuard& guard, const u32 var, const u32 address)
+{
+  HostWrite_U16(guard, static_cast<s32>(var), address);
+}
+
+void MMU::HostWrite_S32(const Core::CPUThreadGuard& guard, const u32 var, const u32 address)
+{
+  HostWrite_U32(guard, static_cast<s32>(var), address);
+}
+
+void MMU::HostWrite_S64(const Core::CPUThreadGuard& guard, const u64 var, const u32 address)
+{
+  HostWrite_U64(guard, static_cast<s64>(var), address);
+}
+
+s8 MMU::HostRead_S8(const Core::CPUThreadGuard& guard, const u32 address)
 {
   return static_cast<s8>(HostRead_U8(guard, address));
 }
 
-s16 HostRead_S16(const Core::CPUThreadGuard& guard, const u32 address)
+s16 MMU::HostRead_S16(const Core::CPUThreadGuard& guard, const u32 address)
 {
   return static_cast<s16>(HostRead_U16(guard, address));
 }
 
-s32 HostRead_S32(const Core::CPUThreadGuard& guard, const u32 address)
+s32 MMU::HostRead_S32(const Core::CPUThreadGuard& guard, const u32 address)
 {
   return static_cast<s32>(HostRead_U32(guard, address));
 }
 
-s64 HostRead_S64(const Core::CPUThreadGuard& guard, const u32 address)
+s64 MMU::HostRead_S64(const Core::CPUThreadGuard& guard, const u32 address)
 {
   return static_cast<s64>(HostRead_U64(guard, address));
 }

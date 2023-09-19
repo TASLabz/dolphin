@@ -265,11 +265,11 @@ void MemChecks::AddFromStrings(const TMemChecksStr& mc_strings)
       mc.condition = Expression::TryParse(condition);
     }
 
-    Add(mc);
+    Add(std::move(mc));
   }
 }
 
-void MemChecks::Add(TMemCheck& memory_check)
+void MemChecks::Add(TMemCheck memory_check)
 {
   bool had_any = HasAny();
   Core::RunAsCPUThread([&] {

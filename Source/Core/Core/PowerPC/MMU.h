@@ -128,6 +128,10 @@ public:
   static u16 HostRead_U16(const Core::CPUThreadGuard& guard, u32 address);
   static u32 HostRead_U32(const Core::CPUThreadGuard& guard, u32 address);
   static u64 HostRead_U64(const Core::CPUThreadGuard& guard, u32 address);
+  static s8 HostRead_S8(const Core::CPUThreadGuard& guard, u32 address);
+  static s16 HostRead_S16(const Core::CPUThreadGuard& guard, u32 address);
+  static s32 HostRead_S32(const Core::CPUThreadGuard& guard, u32 address);
+  static s64 HostRead_S64(const Core::CPUThreadGuard& guard, u32 address);
   static float HostRead_F32(const Core::CPUThreadGuard& guard, u32 address);
   static double HostRead_F64(const Core::CPUThreadGuard& guard, u32 address);
   static u32 HostRead_Instruction(const Core::CPUThreadGuard& guard, u32 address);
@@ -171,6 +175,10 @@ public:
   static void HostWrite_U16(const Core::CPUThreadGuard& guard, u32 var, u32 address);
   static void HostWrite_U32(const Core::CPUThreadGuard& guard, u32 var, u32 address);
   static void HostWrite_U64(const Core::CPUThreadGuard& guard, u64 var, u32 address);
+  static void HostWrite_S8(const Core::CPUThreadGuard& guard, u32 var, u32 address);
+  static void HostWrite_S16(const Core::CPUThreadGuard& guard, u32 var, u32 address);
+  static void HostWrite_S32(const Core::CPUThreadGuard& guard, u32 var, u32 address);
+  static void HostWrite_S64(const Core::CPUThreadGuard& guard, u64 var, u32 address);
   static void HostWrite_F32(const Core::CPUThreadGuard& guard, float var, u32 address);
   static void HostWrite_F64(const Core::CPUThreadGuard& guard, double var, u32 address);
 

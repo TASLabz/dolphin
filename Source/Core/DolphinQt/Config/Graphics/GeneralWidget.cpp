@@ -91,7 +91,7 @@ void GeneralWidget::CreateWidgets()
   m_show_messages = new ConfigBool(tr("Show NetPlay Messages"), Config::GFX_SHOW_NETPLAY_MESSAGES);
   m_render_main_window = new ConfigBool(tr("Render to Main Window"), Config::MAIN_RENDER_TO_MAIN);
   m_lock_window_to_right =
-      new GraphicsBool(tr("Lock Window to Right"), Config::MAIN_RENDER_WINDOW_LOCK_RIGHT);
+      new ConfigBool(tr("Lock Window to Right"), Config::MAIN_RENDER_WINDOW_LOCK_RIGHT);
 
   m_options_box->setLayout(m_options_layout);
 

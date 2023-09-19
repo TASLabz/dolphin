@@ -27,6 +27,7 @@ static PyObject* ReadGPR(PyObject* self, PyObject* args)
     PyErr_SetString(PyExc_ValueError, "register index is out of range");
     return nullptr;
   }
+
   PyObject* result = Py::BuildValue(API::Registers::Read_GPR(index));
   return result;
 }
