@@ -8,6 +8,22 @@ add_library(videocommon
   AbstractStagingTexture.h
   AbstractTexture.cpp
   AbstractTexture.h
+  Assets/CustomAsset.cpp
+  Assets/CustomAsset.h
+  Assets/CustomAssetLibrary.cpp
+  Assets/CustomAssetLibrary.h
+  Assets/CustomAssetLoader.cpp
+  Assets/CustomAssetLoader.h
+  Assets/CustomTextureData.cpp
+  Assets/CustomTextureData.h
+  Assets/DirectFilesystemAssetLibrary.cpp
+  Assets/DirectFilesystemAssetLibrary.h
+  Assets/MaterialAsset.cpp
+  Assets/MaterialAsset.h
+  Assets/ShaderAsset.cpp
+  Assets/ShaderAsset.h
+  Assets/TextureAsset.cpp
+  Assets/TextureAsset.h
   AsyncRequests.cpp
   AsyncRequests.h
   AsyncShaderCompiler.cpp
@@ -48,6 +64,8 @@ add_library(videocommon
   GeometryShaderManager.h
   GraphicsModSystem/Config/GraphicsMod.cpp
   GraphicsModSystem/Config/GraphicsMod.h
+  GraphicsModSystem/Config/GraphicsModAsset.cpp
+  GraphicsModSystem/Config/GraphicsModAsset.h
   GraphicsModSystem/Config/GraphicsModFeature.cpp
   GraphicsModSystem/Config/GraphicsModFeature.h
   GraphicsModSystem/Config/GraphicsModGroup.cpp
@@ -57,6 +75,8 @@ add_library(videocommon
   GraphicsModSystem/Config/GraphicsTargetGroup.cpp
   GraphicsModSystem/Config/GraphicsTargetGroup.h
   GraphicsModSystem/Constants.h
+  GraphicsModSystem/Runtime/Actions/CustomPipelineAction.cpp
+  GraphicsModSystem/Runtime/Actions/CustomPipelineAction.h
   GraphicsModSystem/Runtime/Actions/MoveAction.cpp
   GraphicsModSystem/Runtime/Actions/MoveAction.h
   GraphicsModSystem/Runtime/Actions/PrintAction.cpp
@@ -65,8 +85,8 @@ add_library(videocommon
   GraphicsModSystem/Runtime/Actions/ScaleAction.h
   GraphicsModSystem/Runtime/Actions/SkipAction.cpp
   GraphicsModSystem/Runtime/Actions/SkipAction.h
-  GraphicsModSystem/Runtime/CustomTextureData.cpp
-  GraphicsModSystem/Runtime/CustomTextureData.h
+  GraphicsModSystem/Runtime/CustomShaderCache.cpp
+  GraphicsModSystem/Runtime/CustomShaderCache.h
   GraphicsModSystem/Runtime/FBInfo.cpp
   GraphicsModSystem/Runtime/FBInfo.h
   GraphicsModSystem/Runtime/GraphicsModAction.h
@@ -185,7 +205,7 @@ PUBLIC
   core
 PRIVATE
   fmt::fmt
-  ${spng_target}
+  spng::spng
   xxhash
   imgui
   implot

@@ -9,6 +9,7 @@
 
 #include "Common/BlockingLoop.h"
 #include "Common/CommonTypes.h"
+#include "Common/Config/Config.h"
 #include "Common/Event.h"
 #include "Common/Flag.h"
 
@@ -54,6 +55,7 @@ public:
   void PauseAndLock(Core::System& system, bool doLock, bool unpauseOnUnlock);
   void UpdateWantDeterminism(Core::System& system, bool want);
   bool UseDeterministicGPUThread() const { return m_use_deterministic_gpu_thread; }
+  bool UseSyncGPU() const { return m_config_sync_gpu; }
 
   // In deterministic GPU thread mode this waits for the GPU to be done with pending work.
   void SyncGPU(SyncGPUReason reason, bool may_move_read_ptr = true);
@@ -120,7 +122,7 @@ private:
   bool m_syncing_suspended = false;
   Common::Event m_sync_wakeup_event;
 
-  std::optional<size_t> m_config_callback_id = std::nullopt;
+  std::optional<Config::ConfigChangedCallbackID> m_config_callback_id = std::nullopt;
   bool m_config_sync_gpu = false;
   int m_config_sync_gpu_max_distance = 0;
   int m_config_sync_gpu_min_distance = 0;

@@ -17,6 +17,7 @@
 
 #include "Core/CoreTiming.h"
 #include "Core/PowerPC/Interpreter/ExceptionUtils.h"
+#include "Core/PowerPC/Interpreter/Interpreter.h"
 #include "Core/PowerPC/Jit64/RegCache/JitRegCache.h"
 #include "Core/PowerPC/Jit64Common/Jit64PowerPCState.h"
 #include "Core/PowerPC/JitCommon/DivUtils.h"
@@ -443,13 +444,25 @@ void Jit64::DoMergedBranchCondition()
 
   FixupBranch pDontBranch;
   if (test_bit & 8)
-    pDontBranch = J_CC(condition ? CC_GE : CC_L, true);  // Test < 0, so jump over if >= 0.
+  {
+    // Test < 0, so jump over if >= 0.
+    pDontBranch = J_CC(condition ? CC_GE : CC_L, Jump::Near);
+  }
   else if (test_bit & 4)
-    pDontBranch = J_CC(condition ? CC_LE : CC_G, true);  // Test > 0, so jump over if <= 0.
+  {
+    // Test > 0, so jump over if <= 0.
+    pDontBranch = J_CC(condition ? CC_LE : CC_G, Jump::Near);
+  }
   else if (test_bit & 2)
-    pDontBranch = J_CC(condition ? CC_NE : CC_E, true);  // Test = 0, so jump over if != 0.
-  else  // SO bit, do not branch (we don't emulate SO for cmp).
-    pDontBranch = J(true);
+  {
+    // Test = 0, so jump over if != 0.
+    pDontBranch = J_CC(condition ? CC_NE : CC_E, Jump::Near);
+  }
+  else
+  {
+    // SO bit, do not branch (we don't emulate SO for cmp).
+    pDontBranch = J(Jump::Near);
+  }
 
   {
     RCForkGuard gpr_guard = gpr.Fork();
@@ -1223,7 +1236,7 @@ void Jit64::MultiplyImmediate(u32 imm, int a, int d, bool overflow)
     // power of 2; just a shift
     if (MathUtil::IsPow2(imm))
     {
-      u32 shift = IntLog2(imm);
+      u32 shift = MathUtil::IntLog2(imm);
       // use LEA if it saves an op
       if (d != a && shift <= 3 && shift >= 1 && Ra.IsSimpleReg())
       {
@@ -1731,7 +1744,7 @@ void Jit64::divwx(UGeckoInstruction inst)
       TEST(32, R(dividend), R(dividend));
       LEA(32, sum, MDisp(dividend, abs_val - 1));
       CMOVcc(32, Rd, R(src), cond);
-      SAR(32, Rd, Imm8(IntLog2(abs_val)));
+      SAR(32, Rd, Imm8(MathUtil::IntLog2(abs_val)));
 
       if (divisor < 0)
         NEG(32, Rd);
@@ -2716,7 +2729,7 @@ void Jit64::twX(UGeckoInstruction inst)
   {
     if (inst.TO & (1 << i))
     {
-      FixupBranch f = J_CC(conditions[i], true);
+      FixupBranch f = J_CC(conditions[i], Jump::Near);
       fixups.push_back(f);
     }
   }

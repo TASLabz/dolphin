@@ -11,7 +11,6 @@
 #include <memory>
 #include <mutex>
 #include <span>
-#include <sstream>
 #include <thread>
 #include <tuple>
 #include <type_traits>
@@ -23,7 +22,7 @@
 #include "Common/CommonPaths.h"
 #include "Common/CommonTypes.h"
 #include "Common/Crypto/SHA1.h"
-#include "Common/ENetUtil.h"
+#include "Common/ENet.h"
 #include "Common/FileUtil.h"
 #include "Common/Logging/Log.h"
 #include "Common/MsgHandler.h"
@@ -110,9 +109,9 @@ NetPlayClient::~NetPlayClient()
     Disconnect();
   }
 
-  if (g_MainNetHost.get() == m_client)
+  if (Common::g_MainNetHost.get() == m_client)
   {
-    g_MainNetHost.release();
+    Common::g_MainNetHost.release();
   }
   if (m_client)
   {
@@ -122,7 +121,7 @@ NetPlayClient::~NetPlayClient()
 
   if (m_traversal_client)
   {
-    ReleaseTraversalClient();
+    Common::ReleaseTraversalClient();
   }
 }
 
@@ -143,6 +142,8 @@ NetPlayClient::NetPlayClient(const std::string& address, const u16 port, NetPlay
       m_dialog->OnConnectionError(_trans("Could not create client."));
       return;
     }
+
+    m_client->mtu = std::min(m_client->mtu, NetPlay::MAX_ENET_MTU);
 
     ENetAddress addr;
     enet_address_set_host(&addr, address.c_str());
@@ -166,7 +167,7 @@ NetPlayClient::NetPlayClient(const std::string& address, const u16 port, NetPlay
     {
       if (Connect())
       {
-        m_client->intercept = ENetUtil::InterceptCallback;
+        m_client->intercept = Common::ENet::InterceptCallback;
         m_thread = std::thread(&NetPlayClient::ThreadFunc, this);
       }
     }
@@ -177,18 +178,21 @@ NetPlayClient::NetPlayClient(const std::string& address, const u16 port, NetPlay
   }
   else
   {
-    if (address.size() > NETPLAY_CODE_SIZE)
+    if (address.size() > Common::NETPLAY_CODE_SIZE)
     {
       m_dialog->OnConnectionError(
           _trans("The host code is too long.\nPlease recheck that you have the correct code."));
       return;
     }
 
-    if (!EnsureTraversalClient(traversal_config.traversal_host, traversal_config.traversal_port))
+    if (!Common::EnsureTraversalClient(traversal_config.traversal_host,
+                                       traversal_config.traversal_port))
+    {
       return;
-    m_client = g_MainNetHost.get();
+    }
+    m_client = Common::g_MainNetHost.get();
 
-    m_traversal_client = g_TraversalClient.get();
+    m_traversal_client = Common::g_TraversalClient.get();
 
     // If we were disconnected in the background, reconnect.
     if (m_traversal_client->HasFailed())
@@ -252,7 +256,8 @@ bool NetPlayClient::Connect()
   // TODO: make this not hang
   ENetEvent netEvent;
   int net;
-  while ((net = enet_host_service(m_client, &netEvent, 5000)) > 0 && netEvent.type == 42)
+  while ((net = enet_host_service(m_client, &netEvent, 5000)) > 0 &&
+         netEvent.type == ENetEventType(42))  // See PR #11381 and ENetUtil::InterceptCallback
   {
     // ignore packets from traversal server
   }
@@ -529,10 +534,7 @@ void NetPlayClient::OnChatMessage(sf::Packet& packet)
   INFO_LOG_FMT(NETPLAY, "Player {} ({}) wrote: {}", player.name, player.pid, msg);
 
   // add to gui
-  std::ostringstream ss;
-  ss << player.name << '[' << char(pid + '0') << "]: " << msg;
-
-  m_dialog->AppendChat(ss.str());
+  m_dialog->AppendChat(fmt::format("{}[{}]: {}", player.name, pid, msg));
 }
 
 void NetPlayClient::OnChunkedDataStart(sf::Packet& packet)
@@ -1520,7 +1522,7 @@ void NetPlayClient::OnGameDigestAbort()
 
 void NetPlayClient::Send(const sf::Packet& packet, const u8 channel_id)
 {
-  ENetUtil::SendPacket(m_server, packet, channel_id);
+  Common::ENet::SendPacket(m_server, packet, channel_id);
 }
 
 void NetPlayClient::DisplayPlayersPing()
@@ -1575,7 +1577,7 @@ void NetPlayClient::SendAsync(sf::Packet&& packet, const u8 channel_id)
     std::lock_guard lkq(m_crit.async_queue_write);
     m_async_queue.Push(AsyncQueueEntry{std::move(packet), channel_id});
   }
-  ENetUtil::WakeupThread(m_client);
+  Common::ENet::WakeupThread(m_client);
 }
 
 // called from ---NETPLAY--- thread
@@ -1933,16 +1935,16 @@ void NetPlayClient::ClearBuffers()
 // called from ---NETPLAY--- thread
 void NetPlayClient::OnTraversalStateChanged()
 {
-  const TraversalClient::State state = m_traversal_client->GetState();
+  const Common::TraversalClient::State state = m_traversal_client->GetState();
 
   if (m_connection_state == ConnectionState::WaitingForTraversalClientConnection &&
-      state == TraversalClient::State::Connected)
+      state == Common::TraversalClient::State::Connected)
   {
     m_connection_state = ConnectionState::WaitingForTraversalClientConnectReady;
     m_traversal_client->ConnectToClient(m_host_spec);
   }
   else if (m_connection_state != ConnectionState::Failure &&
-           state == TraversalClient::State::Failure)
+           state == Common::TraversalClient::State::Failure)
   {
     Disconnect();
     m_dialog->OnTraversalError(m_traversal_client->GetFailureReason());
@@ -1961,19 +1963,19 @@ void NetPlayClient::OnConnectReady(ENetAddress addr)
 }
 
 // called from ---NETPLAY--- thread
-void NetPlayClient::OnConnectFailed(TraversalConnectFailedReason reason)
+void NetPlayClient::OnConnectFailed(Common::TraversalConnectFailedReason reason)
 {
   m_connecting = false;
   m_connection_state = ConnectionState::Failure;
   switch (reason)
   {
-  case TraversalConnectFailedReason::ClientDidntRespond:
+  case Common::TraversalConnectFailedReason::ClientDidntRespond:
     PanicAlertFmtT("Traversal server timed out connecting to the host");
     break;
-  case TraversalConnectFailedReason::ClientFailure:
+  case Common::TraversalConnectFailedReason::ClientFailure:
     PanicAlertFmtT("Server rejected traversal attempt");
     break;
-  case TraversalConnectFailedReason::NoSuchClient:
+  case Common::TraversalConnectFailedReason::NoSuchClient:
     PanicAlertFmtT("Invalid host");
     break;
   default:

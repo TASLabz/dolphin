@@ -132,9 +132,9 @@ void JitArm64::SafeLoadToReg(u32 dest, s32 addr, s32 offsetReg, u32 flags, s32 o
   u32 access_size = BackPatchInfo::GetFlagSize(flags);
   u32 mmio_address = 0;
   if (is_immediate)
-    mmio_address = PowerPC::IsOptimizableMMIOAccess(imm_addr, access_size);
+    mmio_address = m_mmu.IsOptimizableMMIOAccess(imm_addr, access_size);
 
-  if (is_immediate && PowerPC::IsOptimizableRAMAddress(imm_addr))
+  if (is_immediate && m_mmu.IsOptimizableRAMAddress(imm_addr))
   {
     set_addr_reg_if_needed();
     EmitBackpatchRoutine(flags, MemAccessMode::AlwaysUnsafe, dest_reg, XA, regs_in_use,
@@ -278,9 +278,9 @@ void JitArm64::SafeStoreFromReg(s32 dest, u32 value, s32 regOffset, u32 flags, s
   u32 access_size = BackPatchInfo::GetFlagSize(flags);
   u32 mmio_address = 0;
   if (is_immediate)
-    mmio_address = PowerPC::IsOptimizableMMIOAccess(imm_addr, access_size);
+    mmio_address = m_mmu.IsOptimizableMMIOAccess(imm_addr, access_size);
 
-  if (is_immediate && jo.optimizeGatherPipe && PowerPC::IsOptimizableGatherPipeWrite(imm_addr))
+  if (is_immediate && jo.optimizeGatherPipe && m_mmu.IsOptimizableGatherPipeWrite(imm_addr))
   {
     int accessSize;
     if (flags & BackPatchInfo::FLAG_SIZE_32)
@@ -306,7 +306,7 @@ void JitArm64::SafeStoreFromReg(s32 dest, u32 value, s32 regOffset, u32 flags, s
 
     js.fifoBytesSinceCheck += accessSize >> 3;
   }
-  else if (is_immediate && PowerPC::IsOptimizableRAMAddress(imm_addr))
+  else if (is_immediate && m_mmu.IsOptimizableRAMAddress(imm_addr))
   {
     set_addr_reg_if_needed();
     EmitBackpatchRoutine(flags, MemAccessMode::AlwaysUnsafe, RS, XA, regs_in_use, fprs_in_use);
@@ -347,7 +347,7 @@ FixupBranch JitArm64::BATAddressLookup(ARM64Reg addr_out, ARM64Reg addr_in, ARM6
   MOVP2R(tmp, bat_table);
   LSR(addr_out, addr_in, PowerPC::BAT_INDEX_SHIFT);
   LDR(addr_out, tmp, ArithOption(addr_out, true));
-  FixupBranch pass = TBNZ(addr_out, IntLog2(PowerPC::BAT_MAPPED_BIT));
+  FixupBranch pass = TBNZ(addr_out, MathUtil::IntLog2(PowerPC::BAT_MAPPED_BIT));
   FixupBranch fail = B();
   SetJumpTarget(pass);
   return fail;
@@ -358,10 +358,10 @@ FixupBranch JitArm64::CheckIfSafeAddress(Arm64Gen::ARM64Reg addr, Arm64Gen::ARM6
 {
   tmp2 = EncodeRegTo64(tmp2);
 
-  MOVP2R(tmp2, PowerPC::dbat_table.data());
+  MOVP2R(tmp2, m_mmu.GetDBATTable().data());
   LSR(tmp1, addr, PowerPC::BAT_INDEX_SHIFT);
   LDR(tmp1, tmp2, ArithOption(tmp1, true));
-  FixupBranch pass = TBNZ(tmp1, IntLog2(PowerPC::BAT_PHYSICAL_BIT));
+  FixupBranch pass = TBNZ(tmp1, MathUtil::IntLog2(PowerPC::BAT_PHYSICAL_BIT));
   FixupBranch fail = B();
   SetJumpTarget(pass);
   return fail;
@@ -647,11 +647,11 @@ void JitArm64::dcbx(UGeckoInstruction inst)
                          js.op[1].inst.RA_6 == b && js.op[1].inst.RD_2 == b &&
                          js.op[2].inst.hex == 0x4200fff8;
 
-  gpr.Lock(ARM64Reg::W0);
+  gpr.Lock(ARM64Reg::W0, ARM64Reg::W1);
   if (make_loop)
-    gpr.Lock(ARM64Reg::W1);
+    gpr.Lock(ARM64Reg::W2);
 
-  ARM64Reg WA = gpr.GetReg();
+  ARM64Reg WA = ARM64Reg::W0;
 
   if (make_loop)
     gpr.BindToRegister(b, true);
@@ -668,8 +668,8 @@ void JitArm64::dcbx(UGeckoInstruction inst)
 
     ARM64Reg reg_cycle_count = gpr.GetReg();
     ARM64Reg reg_downcount = gpr.GetReg();
-    loop_counter = ARM64Reg::W1;
-    ARM64Reg WB = ARM64Reg::W0;
+    loop_counter = ARM64Reg::W2;
+    ARM64Reg WB = ARM64Reg::W1;
 
     // Figure out how many loops we want to do.
     const u8 cycle_count_per_loop =
@@ -709,7 +709,7 @@ void JitArm64::dcbx(UGeckoInstruction inst)
     gpr.Unlock(reg_cycle_count, reg_downcount);
   }
 
-  ARM64Reg effective_addr = ARM64Reg::W0;
+  ARM64Reg effective_addr = ARM64Reg::W1;
   ARM64Reg physical_addr = gpr.GetReg();
 
   if (a)
@@ -730,7 +730,7 @@ void JitArm64::dcbx(UGeckoInstruction inst)
   if (m_ppc_state.msr.IR)
   {
     bat_lookup_failed =
-        BATAddressLookup(physical_addr, effective_addr, WA, PowerPC::ibat_table.data());
+        BATAddressLookup(physical_addr, effective_addr, WA, m_mmu.GetIBATTable().data());
     BFI(physical_addr, effective_addr, 0, PowerPC::BAT_INDEX_SHIFT);
   }
 
@@ -770,8 +770,8 @@ void JitArm64::dcbx(UGeckoInstruction inst)
   ABI_PushRegisters(gprs_to_push);
   m_float_emit.ABI_PushRegisters(fprs_to_push, WA);
 
-  // The first two function call arguments are already in the correct registers
-  MOVP2R(ARM64Reg::X2, &m_system.GetJitInterface());
+  MOVP2R(ARM64Reg::X0, &m_system.GetJitInterface());
+  // effective_address and loop_counter are already in W1 and W2 respectively
   if (make_loop)
     MOVP2R(ARM64Reg::X8, &JitInterface::InvalidateICacheLinesFromJIT);
   else

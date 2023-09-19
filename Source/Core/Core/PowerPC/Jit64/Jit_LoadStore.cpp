@@ -324,7 +324,7 @@ void Jit64::dcbx(UGeckoInstruction inst)
   if (m_ppc_state.msr.IR)
   {
     // Translate effective address to physical address.
-    bat_lookup_failed = BATAddressLookup(addr, tmp, PowerPC::ibat_table.data());
+    bat_lookup_failed = BATAddressLookup(addr, tmp, m_jit.m_mmu.GetIBATTable().data());
     MOV(32, R(tmp), R(effective_address));
     AND(32, R(tmp), Imm32(0x0001ffff));
     AND(32, R(addr), Imm32(0xfffe0000));
@@ -338,7 +338,7 @@ void Jit64::dcbx(UGeckoInstruction inst)
   MOV(32, R(tmp), R(effective_address));
   SHR(32, R(tmp), Imm8(5));
   BT(32, R(addr), R(tmp));
-  FixupBranch invalidate_needed = J_CC(CC_C, true);
+  FixupBranch invalidate_needed = J_CC(CC_C, Jump::Near);
 
   if (make_loop)
   {
@@ -361,21 +361,18 @@ void Jit64::dcbx(UGeckoInstruction inst)
   ABI_PushRegistersAndAdjustStack(registersInUse, 0);
   if (make_loop)
   {
-    MOV(32, R(ABI_PARAM1), R(effective_address));
-    MOV(32, R(ABI_PARAM2), R(loop_counter));
-    MOV(64, R(ABI_PARAM3), Imm64(reinterpret_cast<u64>(&m_system.GetJitInterface())));
-    ABI_CallFunction(JitInterface::InvalidateICacheLinesFromJIT);
+    ABI_CallFunctionPRR(JitInterface::InvalidateICacheLinesFromJIT, &m_system.GetJitInterface(),
+                        effective_address, loop_counter);
   }
   else
   {
-    MOV(32, R(ABI_PARAM1), R(effective_address));
-    MOV(64, R(ABI_PARAM3), Imm64(reinterpret_cast<u64>(&m_system.GetJitInterface())));
-    ABI_CallFunction(JitInterface::InvalidateICacheLineFromJIT);
+    ABI_CallFunctionPR(JitInterface::InvalidateICacheLineFromJIT, &m_system.GetJitInterface(),
+                       effective_address);
   }
   ABI_PopRegistersAndAdjustStack(registersInUse, 0);
   asm_routines.ResetStack(*this);
 
-  FixupBranch done = J(true);
+  FixupBranch done = J(Jump::Near);
   SwitchToNearCode();
   SetJumpTarget(done);
 }
@@ -430,12 +427,12 @@ void Jit64::dcbz(UGeckoInstruction inst)
   if (emit_fast_path)
   {
     // Perform lookup to see if we can use fast path.
-    MOV(64, R(RSCRATCH2), ImmPtr(&PowerPC::dbat_table[0]));
+    MOV(64, R(RSCRATCH2), ImmPtr(m_mmu.GetDBATTable().data()));
     PUSH(RSCRATCH);
     SHR(32, R(RSCRATCH), Imm8(PowerPC::BAT_INDEX_SHIFT));
     TEST(32, MComplex(RSCRATCH2, RSCRATCH, SCALE_4, 0), Imm32(PowerPC::BAT_PHYSICAL_BIT));
     POP(RSCRATCH);
-    FixupBranch slow = J_CC(CC_Z, true);
+    FixupBranch slow = J_CC(CC_Z, Jump::Near);
 
     // Fast path: compute full address, then zero out 32 bytes of memory.
     XORPS(XMM0, R(XMM0));
@@ -449,12 +446,12 @@ void Jit64::dcbz(UGeckoInstruction inst)
   MOV(32, PPCSTATE(pc), Imm32(js.compilerPC));
   BitSet32 registersInUse = CallerSavedRegistersInUse();
   ABI_PushRegistersAndAdjustStack(registersInUse, 0);
-  ABI_CallFunctionR(PowerPC::ClearDCacheLine, RSCRATCH);
+  ABI_CallFunctionPR(PowerPC::ClearDCacheLineFromJit64, &m_mmu, RSCRATCH);
   ABI_PopRegistersAndAdjustStack(registersInUse, 0);
 
   if (emit_fast_path)
   {
-    FixupBranch end_far_code = J(true);
+    FixupBranch end_far_code = J(Jump::Near);
     SwitchToNearCode();
     SetJumpTarget(end_far_code);
   }
@@ -510,7 +507,7 @@ void Jit64::stX(UGeckoInstruction inst)
       }
       else
       {
-        RCOpArg Ra = gpr.UseNoImm(a, RCMode::Write);
+        RCOpArg Ra = gpr.RevertableBind(a, RCMode::Write);
         RegCache::Realize(Ra);
         MemoryExceptionCheck();
         MOV(32, Ra, Imm32(addr));

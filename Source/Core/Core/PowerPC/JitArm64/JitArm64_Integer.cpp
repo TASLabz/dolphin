@@ -13,6 +13,7 @@
 
 #include "Core/Core.h"
 #include "Core/CoreTiming.h"
+#include "Core/PowerPC/Interpreter/Interpreter.h"
 #include "Core/PowerPC/JitArm64/JitArm64_RegCache.h"
 #include "Core/PowerPC/JitCommon/DivUtils.h"
 #include "Core/PowerPC/PPCTables.h"
@@ -322,11 +323,22 @@ void JitArm64::boolX(UGeckoInstruction inst)
       PanicAlertFmt("WTF!");
     }
   }
-  else if ((gpr.IsImm(s) && (gpr.GetImm(s) == 0 || gpr.GetImm(s) == 0xFFFFFFFF)) ||
-           (gpr.IsImm(b) && (gpr.GetImm(b) == 0 || gpr.GetImm(b) == 0xFFFFFFFF)))
+  else if ((gpr.IsImm(s) &&
+            (gpr.GetImm(s) == 0 || gpr.GetImm(s) == 0xFFFFFFFF || LogicalImm(gpr.GetImm(s), 32))) ||
+           (gpr.IsImm(b) &&
+            (gpr.GetImm(b) == 0 || gpr.GetImm(b) == 0xFFFFFFFF || LogicalImm(gpr.GetImm(b), 32))))
   {
-    const auto [i, j] = gpr.IsImm(s) ? std::pair(s, b) : std::pair(b, s);
-    bool is_zero = gpr.GetImm(i) == 0;
+    int i, j;
+    if (gpr.IsImm(s))
+    {
+      i = s;
+      j = b;
+    }
+    else
+    {
+      i = b;
+      j = s;
+    }
 
     bool complement_b = (inst.SUBOP10 == 60 /* andcx */) || (inst.SUBOP10 == 412 /* orcx */);
     const bool final_not = (inst.SUBOP10 == 476 /* nandx */) || (inst.SUBOP10 == 124 /* norx */);
@@ -336,23 +348,39 @@ void JitArm64::boolX(UGeckoInstruction inst)
                        (inst.SUBOP10 == 124 /* norx */);
     const bool is_xor = (inst.SUBOP10 == 316 /* xorx */) || (inst.SUBOP10 == 284 /* eqvx */);
 
+    u32 imm = gpr.GetImm(i);
     if ((complement_b && i == b) || (inst.SUBOP10 == 284 /* eqvx */))
     {
-      is_zero = !is_zero;
+      imm = ~imm;
       complement_b = false;
     }
 
+    const bool is_zero = imm == 0;
+    const bool is_ones = imm == 0xFFFFFFFF;
+    // If imm can be represented as LogicalImm, so can ~imm.
+    const auto log_imm = LogicalImm(imm, 32);
+
     if (is_xor)
     {
-      if (!is_zero)
+      if (is_zero)
+      {
+        if (a != j)
+        {
+          gpr.BindToRegister(a, false);
+          MOV(gpr.R(a), gpr.R(j));
+        }
+      }
+      else
       {
         gpr.BindToRegister(a, a == j);
-        MVN(gpr.R(a), gpr.R(j));
-      }
-      else if (a != j)
-      {
-        gpr.BindToRegister(a, false);
-        MOV(gpr.R(a), gpr.R(j));
+        if (is_ones)
+        {
+          MVN(gpr.R(a), gpr.R(j));
+        }
+        else
+        {
+          EOR(gpr.R(a), gpr.R(j), log_imm);
+        }
       }
       if (inst.Rc)
         ComputeRC0(gpr.R(a));
@@ -365,16 +393,14 @@ void JitArm64::boolX(UGeckoInstruction inst)
         if (inst.Rc)
           ComputeRC0(gpr.GetImm(a));
       }
-      else if (final_not || complement_b)
+      else if (is_ones)
       {
-        gpr.BindToRegister(a, a == j);
-        MVN(gpr.R(a), gpr.R(j));
-        if (inst.Rc)
-          ComputeRC0(gpr.R(a));
-      }
-      else
-      {
-        if (a != j)
+        if (final_not || complement_b)
+        {
+          gpr.BindToRegister(a, a == j);
+          MVN(gpr.R(a), gpr.R(j));
+        }
+        else if (a != j)
         {
           gpr.BindToRegister(a, false);
           MOV(gpr.R(a), gpr.R(j));
@@ -382,28 +408,66 @@ void JitArm64::boolX(UGeckoInstruction inst)
         if (inst.Rc)
           ComputeRC0(gpr.R(a));
       }
+      else
+      {
+        if (!complement_b)
+        {
+          gpr.BindToRegister(a, a == j);
+          AND(gpr.R(a), gpr.R(j), log_imm);
+          if (final_not)
+            MVN(gpr.R(a), gpr.R(a));
+        }
+        else
+        {
+          // No shorter instruction sequence is possible. Just materialize the
+          // immediate in a register as usual, so subsequent uses can leech off
+          // of it.
+          gpr.BindToRegister(a, (a == i) || (a == j));
+          BIC(gpr.R(a), gpr.R(i), gpr.R(j));
+        }
+        if (inst.Rc)
+          ComputeRC0(gpr.R(a));
+      }
     }
     else if (is_or)
     {
-      if (!is_zero)
+      if (is_ones)
       {
         gpr.SetImmediate(a, final_not ? 0 : 0xFFFFFFFF);
         if (inst.Rc)
           ComputeRC0(gpr.GetImm(a));
       }
-      else if (final_not || complement_b)
+      else if (is_zero)
       {
-        gpr.BindToRegister(a, a == j);
-        MVN(gpr.R(a), gpr.R(j));
+        if (final_not || complement_b)
+        {
+          gpr.BindToRegister(a, a == j);
+          MVN(gpr.R(a), gpr.R(j));
+        }
+        else if (a != j)
+        {
+          gpr.BindToRegister(a, false);
+          MOV(gpr.R(a), gpr.R(j));
+        }
         if (inst.Rc)
           ComputeRC0(gpr.R(a));
       }
       else
       {
-        if (a != j)
+        if (!complement_b)
         {
-          gpr.BindToRegister(a, false);
-          MOV(gpr.R(a), gpr.R(j));
+          gpr.BindToRegister(a, a == j);
+          ORR(gpr.R(a), gpr.R(j), log_imm);
+          if (final_not)
+            MVN(gpr.R(a), gpr.R(a));
+        }
+        else
+        {
+          // No shorter instruction sequence is possible. Just materialize the
+          // immediate in a register as usual, so subsequent uses can leech off
+          // of it.
+          gpr.BindToRegister(a, (a == i) || (a == j));
+          ORN(gpr.R(a), gpr.R(i), gpr.R(j));
         }
         if (inst.Rc)
           ComputeRC0(gpr.R(a));
@@ -909,7 +973,7 @@ bool JitArm64::MultiplyImmediate(u32 imm, int a, int d, bool rc)
   else if (MathUtil::IsPow2(imm))
   {
     // Multiplication by a power of two (2^n).
-    const int shift = IntLog2(imm);
+    const int shift = MathUtil::IntLog2(imm);
 
     gpr.BindToRegister(d, d == a);
     LSL(gpr.R(d), gpr.R(a), shift);
@@ -919,7 +983,7 @@ bool JitArm64::MultiplyImmediate(u32 imm, int a, int d, bool rc)
   else if (MathUtil::IsPow2(imm - 1))
   {
     // Multiplication by a power of two plus one (2^n + 1).
-    const int shift = IntLog2(imm - 1);
+    const int shift = MathUtil::IntLog2(imm - 1);
 
     gpr.BindToRegister(d, d == a);
     ADD(gpr.R(d), gpr.R(a), gpr.R(a), ArithOption(gpr.R(a), ShiftType::LSL, shift));
@@ -929,7 +993,7 @@ bool JitArm64::MultiplyImmediate(u32 imm, int a, int d, bool rc)
   else if (MathUtil::IsPow2(~imm + 1))
   {
     // Multiplication by a negative power of two (-(2^n)).
-    const int shift = IntLog2(~imm + 1);
+    const int shift = MathUtil::IntLog2(~imm + 1);
 
     gpr.BindToRegister(d, d == a);
     NEG(gpr.R(d), gpr.R(a), ArithOption(gpr.R(a), ShiftType::LSL, shift));
@@ -939,7 +1003,7 @@ bool JitArm64::MultiplyImmediate(u32 imm, int a, int d, bool rc)
   else if (MathUtil::IsPow2(~imm + 2))
   {
     // Multiplication by a negative power of two plus one (-(2^n) + 1).
-    const int shift = IntLog2(~imm + 2);
+    const int shift = MathUtil::IntLog2(~imm + 2);
 
     gpr.BindToRegister(d, d == a);
     SUB(gpr.R(d), gpr.R(a), gpr.R(a), ArithOption(gpr.R(a), ShiftType::LSL, shift));
@@ -1603,9 +1667,9 @@ void JitArm64::divwx(UGeckoInstruction inst)
       CSEL(WA, RA, WA, CCFlags::CC_PL);
 
       if (divisor < 0)
-        NEG(RD, WA, ArithOption(WA, ShiftType::ASR, IntLog2(abs_val)));
+        NEG(RD, WA, ArithOption(WA, ShiftType::ASR, MathUtil::IntLog2(abs_val)));
       else
-        ASR(RD, WA, IntLog2(abs_val));
+        ASR(RD, WA, MathUtil::IntLog2(abs_val));
 
       if (allocate_reg)
         gpr.Unlock(WA);

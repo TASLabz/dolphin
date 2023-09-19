@@ -20,7 +20,7 @@
 #include <fmt/format.h>
 
 #include "Common/CommonPaths.h"
-#include "Common/ENetUtil.h"
+#include "Common/ENet.h"
 #include "Common/FileUtil.h"
 #include "Common/HttpRequest.h"
 #include "Common/Logging/Log.h"
@@ -98,20 +98,20 @@ NetPlayServer::~NetPlayServer()
     m_thread.join();
     enet_host_destroy(m_server);
 
-    if (g_MainNetHost.get() == m_server)
+    if (Common::g_MainNetHost.get() == m_server)
     {
-      g_MainNetHost.release();
+      Common::g_MainNetHost.release();
     }
 
     if (m_traversal_client)
     {
-      g_TraversalClient->m_Client = nullptr;
-      ReleaseTraversalClient();
+      Common::g_TraversalClient->m_Client = nullptr;
+      Common::ReleaseTraversalClient();
     }
   }
 
 #ifdef USE_UPNP
-  UPnP::StopPortmapping();
+  Common::UPnP::StopPortmapping();
 #endif
 }
 
@@ -132,17 +132,19 @@ NetPlayServer::NetPlayServer(const u16 port, const bool forward_port, NetPlayUI*
 
   if (traversal_config.use_traversal)
   {
-    if (!EnsureTraversalClient(traversal_config.traversal_host, traversal_config.traversal_port,
-                               port))
+    if (!Common::EnsureTraversalClient(traversal_config.traversal_host,
+                                       traversal_config.traversal_port, port))
+    {
       return;
+    }
 
-    g_TraversalClient->m_Client = this;
-    m_traversal_client = g_TraversalClient.get();
+    Common::g_TraversalClient->m_Client = this;
+    m_traversal_client = Common::g_TraversalClient.get();
 
-    m_server = g_MainNetHost.get();
+    m_server = Common::g_MainNetHost.get();
 
-    if (g_TraversalClient->HasFailed())
-      g_TraversalClient->ReconnectToServer();
+    if (Common::g_TraversalClient->HasFailed())
+      Common::g_TraversalClient->ReconnectToServer();
   }
   else
   {
@@ -151,7 +153,10 @@ NetPlayServer::NetPlayServer(const u16 port, const bool forward_port, NetPlayUI*
     serverAddr.port = port;
     m_server = enet_host_create(&serverAddr, 10, CHANNEL_COUNT, 0, 0);
     if (m_server != nullptr)
-      m_server->intercept = ENetUtil::InterceptCallback;
+    {
+      m_server->mtu = std::min(m_server->mtu, NetPlay::MAX_ENET_MTU);
+      m_server->intercept = Common::ENet::InterceptCallback;
+    }
 
     SetupIndex();
   }
@@ -164,8 +169,8 @@ NetPlayServer::NetPlayServer(const u16 port, const bool forward_port, NetPlayUI*
     m_chunked_data_thread = std::thread(&NetPlayServer::ChunkedDataThreadFunc, this);
 
 #ifdef USE_UPNP
-    if (forward_port)
-      UPnP::TryPortmapping(port);
+    if (forward_port && !traversal_config.use_traversal)
+      Common::UPnP::TryPortmapping(port);
 #endif
   }
 }
@@ -208,7 +213,7 @@ void NetPlayServer::SetupIndex()
     if (!m_traversal_client->IsConnected())
       return;
 
-    session.server_id = std::string(g_TraversalClient->GetHostID().data(), 8);
+    session.server_id = std::string(Common::g_TraversalClient->GetHostID().data(), 8);
   }
   else
   {
@@ -698,7 +703,7 @@ void NetPlayServer::SendAsync(sf::Packet&& packet, const PlayerId pid, const u8 
     std::lock_guard lkq(m_crit.async_queue_write);
     m_async_queue.Push(AsyncQueueEntry{std::move(packet), pid, TargetMode::Only, channel_id});
   }
-  ENetUtil::WakeupThread(m_server);
+  Common::ENet::WakeupThread(m_server);
 }
 
 void NetPlayServer::SendAsyncToClients(sf::Packet&& packet, const PlayerId skip_pid,
@@ -709,7 +714,7 @@ void NetPlayServer::SendAsyncToClients(sf::Packet&& packet, const PlayerId skip_
     m_async_queue.Push(
         AsyncQueueEntry{std::move(packet), skip_pid, TargetMode::AllExcept, channel_id});
   }
-  ENetUtil::WakeupThread(m_server);
+  Common::ENet::WakeupThread(m_server);
 }
 
 void NetPlayServer::SendChunked(sf::Packet&& packet, const PlayerId pid, const std::string& title)
@@ -1245,15 +1250,15 @@ unsigned int NetPlayServer::OnData(sf::Packet& packet, Client& player)
 
 void NetPlayServer::OnTraversalStateChanged()
 {
-  const TraversalClient::State state = m_traversal_client->GetState();
+  const Common::TraversalClient::State state = m_traversal_client->GetState();
 
-  if (g_TraversalClient->GetHostID()[0] != '\0')
+  if (Common::g_TraversalClient->GetHostID()[0] != '\0')
     SetupIndex();
 
   if (!m_dialog)
     return;
 
-  if (state == TraversalClient::State::Failure)
+  if (state == Common::TraversalClient::State::Failure)
     m_dialog->OnTraversalError(m_traversal_client->GetFailureReason());
 
   m_dialog->OnTraversalStateChanged(state);
@@ -1715,10 +1720,18 @@ std::optional<SaveSyncInfo> NetPlayServer::CollectSaveSyncInfo()
     if (m_settings.savedata_sync_all_wii)
     {
       IOS::HLE::Kernel ios;
-      for (const u64 title : ios.GetES()->GetInstalledTitles())
+      for (const u64 title : ios.GetESCore().GetInstalledTitles())
       {
         auto save = WiiSave::MakeNandStorage(sync_info.configured_fs.get(), title);
-        sync_info.wii_saves.emplace_back(title, std::move(save));
+        if (save && save->ReadHeader().has_value() && save->ReadBkHeader().has_value() &&
+            save->ReadFiles().has_value())
+        {
+          sync_info.wii_saves.emplace_back(title, std::move(save));
+        }
+        else
+        {
+          INFO_LOG_FMT(NETPLAY, "Skipping Wii save of title {:016x}.", title);
+        }
       }
     }
     else if (sync_info.game->GetPlatform() == DiscIO::Platform::WiiDisc ||
@@ -2024,10 +2037,10 @@ bool NetPlayServer::SyncCodes()
   // Find all INI files
   const auto game_id = game->GetGameID();
   const auto revision = game->GetRevision();
-  IniFile globalIni;
+  Common::IniFile globalIni;
   for (const std::string& filename : ConfigLoaders::GetGameIniFilenames(game_id, revision))
     globalIni.Load(File::GetSysDirectory() + GAMESETTINGS_DIR DIR_SEP + filename, true);
-  IniFile localIni;
+  Common::IniFile localIni;
   for (const std::string& filename : ConfigLoaders::GetGameIniFilenames(game_id, revision))
     localIni.Load(File::GetUserPath(D_GAMESETTINGS_IDX) + filename, true);
 
@@ -2180,7 +2193,7 @@ void NetPlayServer::SendToClients(const sf::Packet& packet, const PlayerId skip_
 
 void NetPlayServer::Send(ENetPeer* socket, const sf::Packet& packet, const u8 channel_id)
 {
-  ENetUtil::SendPacket(socket, packet, channel_id);
+  Common::ENet::SendPacket(socket, packet, channel_id);
 }
 
 void NetPlayServer::KickPlayer(PlayerId player)
@@ -2263,8 +2276,7 @@ u16 NetPlayServer::GetPort() const
 std::unordered_set<std::string> NetPlayServer::GetInterfaceSet() const
 {
   std::unordered_set<std::string> result;
-  auto lst = GetInterfaceListInternal();
-  for (auto list_entry : lst)
+  for (const auto& list_entry : GetInterfaceListInternal())
     result.emplace(list_entry.first);
   return result;
 }

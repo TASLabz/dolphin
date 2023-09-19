@@ -3,13 +3,17 @@
 
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <map>
 #include <unordered_set>
+#include <utility>
 
 #include "Common/BitSet.h"
 #include "Common/CommonTypes.h"
+#include "Common/Config/ConfigInfo.h"
 #include "Common/x64Emitter.h"
+#include "Core/CPUThreadConfigCallback.h"
 #include "Core/ConfigManager.h"
 #include "Core/MachineContext.h"
 #include "Core/PowerPC/CPUCoreBase.h"
@@ -23,8 +27,9 @@ class System;
 }
 namespace PowerPC
 {
+class MMU;
 struct PowerPCState;
-}
+}  // namespace PowerPC
 
 //#define JIT_LOG_GENERATED_CODE  // Enables logging of generated code
 //#define JIT_LOG_GPR             // Enables logging of the PPC general purpose regs
@@ -32,7 +37,7 @@ struct PowerPCState;
 
 // Use these to control the instruction selection
 // #define INSTRUCTION_START FallBackToInterpreter(inst); return;
-// #define INSTRUCTION_START PPCTables::CountInstruction(inst);
+// #define INSTRUCTION_START PPCTables::CountInstruction(inst, m_ppc_state.pc);
 #define INSTRUCTION_START
 
 #define FALLBACK_IF(cond)                                                                          \
@@ -128,7 +133,7 @@ protected:
   PPCAnalyst::CodeBuffer m_code_buffer;
   PPCAnalyst::PPCAnalyzer analyzer;
 
-  size_t m_registered_config_callback_id;
+  CPUThreadConfigCallback::ConfigChangedCallbackID m_registered_config_callback_id;
   bool bJITOff = false;
   bool bJITLoadStoreOff = false;
   bool bJITLoadStorelXzOff = false;
@@ -143,20 +148,22 @@ protected:
   bool bJITBranchOff = false;
   bool bJITRegisterCacheOff = false;
   bool m_enable_debugging = false;
+  bool m_enable_branch_following = false;
   bool m_enable_float_exceptions = false;
   bool m_enable_div_by_zero_exceptions = false;
   bool m_low_dcbz_hack = false;
   bool m_fprf = false;
   bool m_accurate_nans = false;
   bool m_fastmem_enabled = false;
-  bool m_mmu_enabled = false;
-  bool m_pause_on_panic_enabled = false;
   bool m_accurate_cpu_cache_enabled = false;
 
   bool m_enable_blr_optimization = false;
   bool m_cleanup_after_stackfault = false;
   u8* m_stack_guard = nullptr;
 
+  static const std::array<std::pair<bool JitBase::*, const Config::Info<bool>*>, 22> JIT_SETTINGS;
+
+  bool DoesConfigNeedRefresh();
   void RefreshConfig();
 
   void InitBLROptimization();
@@ -165,8 +172,6 @@ protected:
   void CleanUpAfterStackFault();
 
   bool CanMergeNextInstructions(int count) const;
-
-  void UpdateMemoryAndExceptionOptions();
 
   bool ShouldHandleFPExceptionForInstruction(const PPCAnalyst::CodeOp* op);
 
@@ -198,6 +203,7 @@ public:
 
   Core::System& m_system;
   PowerPC::PowerPCState& m_ppc_state;
+  PowerPC::MMU& m_mmu;
 };
 
 void JitTrampoline(JitBase& jit, u32 em_address);

@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "Common/CommonTypes.h"
+#include "Core/HW/Memmap.h"
 
 class JitBase;
 
@@ -29,9 +30,6 @@ struct JitBlockData
   u8* far_begin;
   u8* far_end;
 
-  // A special entry point for block linking; usually used to check the
-  // downcount.
-  u8* checkedEntry;
   // The normal entry point for the block, returned by Dispatch().
   u8* normalEntry;
 
@@ -72,6 +70,9 @@ struct JitBlock : public JitBlockData
   struct LinkData
   {
     u8* exitPtrs;  // to be able to rewrite the exit jump
+#ifdef _M_ARM_64
+    const u8* exitFarcode;
+#endif
     u32 exitAddress;
     bool linkStatus;  // is it already linked?
     bool call;
@@ -131,8 +132,11 @@ public:
   // is valid (MSR.IR and MSR.DR, the address translation bits).
   static constexpr u32 JIT_CACHE_MSR_MASK = 0x30;
 
-  static constexpr u32 FAST_BLOCK_MAP_ELEMENTS = 0x10000;
-  static constexpr u32 FAST_BLOCK_MAP_MASK = FAST_BLOCK_MAP_ELEMENTS - 1;
+  // The value for the map is determined like this:
+  // ((4 GB guest memory space) / (4 bytes per address) * sizeof(JitBlock*)) * (4 for 2 bits of msr)
+  static constexpr u64 FAST_BLOCK_MAP_SIZE = 0x8'0000'0000;
+  static constexpr u32 FAST_BLOCK_MAP_FALLBACK_ELEMENTS = 0x10000;
+  static constexpr u32 FAST_BLOCK_MAP_FALLBACK_MASK = FAST_BLOCK_MAP_FALLBACK_ELEMENTS - 1;
 
   explicit JitBaseBlockCache(JitBase& jit);
   virtual ~JitBaseBlockCache();
@@ -143,7 +147,8 @@ public:
   void Reset();
 
   // Code Cache
-  JitBlock** GetFastBlockMap();
+  u8** GetEntryPoints();
+  JitBlock** GetFastBlockMapFallback();
   void RunOnBlocks(std::function<void(const JitBlock&)> f);
 
   JitBlock* AllocateBlock(u32 em_address);
@@ -183,7 +188,7 @@ private:
   JitBlock* MoveBlockIntoFastCache(u32 em_address, u32 msr);
 
   // Fast but risky block lookup based on fast_block_map.
-  size_t FastLookupIndexForAddress(u32 address);
+  size_t FastLookupIndexForAddress(u32 address, u32 msr);
 
   // links_to hold all exit points of all valid blocks in a reverse way.
   // It is used to query all blocks which links to an address.
@@ -203,7 +208,14 @@ private:
   // It is used to provide a fast way to query if no icache invalidation is needed.
   ValidBlockBitSet valid_block;
 
-  // This array is indexed with the masked PC and likely holds the correct block id.
-  // This is used as a fast cache of block_map used in the assembly dispatcher.
-  std::array<JitBlock*, FAST_BLOCK_MAP_ELEMENTS> fast_block_map{};  // start_addr & mask -> number
+  // This contains the entry points for each block.
+  // It is used by the assembly dispatcher to quickly
+  // know where to jump based on pc and msr bits.
+  Common::LazyMemoryRegion m_entry_points_arena;
+  u8** m_entry_points_ptr = 0;
+
+  // An alternative for the above but without a shm segment
+  // in case the shm memory region couldn't be allocated.
+  std::array<JitBlock*, FAST_BLOCK_MAP_FALLBACK_ELEMENTS>
+      m_fast_block_map_fallback{};  // start_addr & mask -> number
 };

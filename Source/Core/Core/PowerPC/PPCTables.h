@@ -3,13 +3,8 @@
 
 #pragma once
 
-#include <array>
-#include <cstddef>
-#include <utility>
-
 #include "Common/CommonTypes.h"
 #include "Core/PowerPC/Gekko.h"
-#include "Core/PowerPC/Interpreter/Interpreter.h"
 
 // Flags that indicate what an instruction can do.
 enum InstructionFlags : u64
@@ -118,13 +113,13 @@ struct GekkoOPInfo
 
 namespace PPCTables
 {
-const GekkoOPInfo* GetOpInfo(UGeckoInstruction inst);
+const GekkoOPInfo* GetOpInfo(UGeckoInstruction inst, u32 pc);
 
-bool IsValidInstruction(UGeckoInstruction inst);
+bool IsValidInstruction(UGeckoInstruction inst, u32 pc);
 
-void CountInstruction(UGeckoInstruction inst);
+void CountInstruction(UGeckoInstruction inst, u32 pc);
 void CountInstructionCompile(const GekkoOPInfo* info, u32 pc);
 void PrintInstructionRunCounts();
 void LogCompiledInstructions();
-const char* GetInstructionName(UGeckoInstruction inst);
+const char* GetInstructionName(UGeckoInstruction inst, u32 pc);
 }  // namespace PPCTables

@@ -13,6 +13,8 @@ enum class AbstractTextureFormat : u32
 {
   RGBA8,
   BGRA8,
+  RGB10_A2,
+  RGBA16F,
   DXT1,
   DXT3,
   DXT5,
@@ -37,6 +39,7 @@ enum AbstractTextureFlag : u32
 {
   AbstractTextureFlag_RenderTarget = (1 << 0),  // Texture is used as a framebuffer.
   AbstractTextureFlag_ComputeImage = (1 << 1),  // Texture is used as a compute image.
+  AbstractTextureFlag_CubeMap = (1 << 2),       // Texture is used as a cube map.
 };
 
 struct TextureConfig
@@ -59,6 +62,7 @@ struct TextureConfig
   bool IsMultisampled() const { return samples > 1; }
   bool IsRenderTarget() const { return (flags & AbstractTextureFlag_RenderTarget) != 0; }
   bool IsComputeImage() const { return (flags & AbstractTextureFlag_ComputeImage) != 0; }
+  bool IsCubeMap() const { return (flags & AbstractTextureFlag_CubeMap) != 0; }
 
   u32 width = 0;
   u32 height = 0;

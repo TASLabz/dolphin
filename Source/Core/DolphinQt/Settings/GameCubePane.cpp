@@ -39,6 +39,7 @@
 #include "DolphinQt/QtUtils/DolphinFileDialog.h"
 #include "DolphinQt/QtUtils/ModalMessageBox.h"
 #include "DolphinQt/QtUtils/NonDefaultQPushButton.h"
+#include "DolphinQt/QtUtils/SetWindowDecorations.h"
 #include "DolphinQt/QtUtils/SignalBlocking.h"
 #include "DolphinQt/Settings.h"
 #include "DolphinQt/Settings/BroadbandAdapterSettingsDialog.h"
@@ -379,22 +380,32 @@ void GameCubePane::OnConfigPressed(ExpansionInterface::Slot slot)
     BrowseAGPRom(slot);
     return;
   case ExpansionInterface::EXIDeviceType::Microphone:
+  {
     // TODO: convert MappingWindow to use Slot?
-    MappingWindow(this, MappingWindow::Type::MAPPING_GC_MICROPHONE, static_cast<int>(slot)).exec();
+    MappingWindow dialog(this, MappingWindow::Type::MAPPING_GC_MICROPHONE, static_cast<int>(slot));
+    SetQWidgetWindowDecorations(&dialog);
+    dialog.exec();
     return;
+  }
   case ExpansionInterface::EXIDeviceType::Ethernet:
   {
-    BroadbandAdapterSettingsDialog(this, BroadbandAdapterSettingsDialog::Type::Ethernet).exec();
+    BroadbandAdapterSettingsDialog dialog(this, BroadbandAdapterSettingsDialog::Type::Ethernet);
+    SetQWidgetWindowDecorations(&dialog);
+    dialog.exec();
     return;
   }
   case ExpansionInterface::EXIDeviceType::EthernetXLink:
   {
-    BroadbandAdapterSettingsDialog(this, BroadbandAdapterSettingsDialog::Type::XLinkKai).exec();
+    BroadbandAdapterSettingsDialog dialog(this, BroadbandAdapterSettingsDialog::Type::XLinkKai);
+    SetQWidgetWindowDecorations(&dialog);
+    dialog.exec();
     return;
   }
   case ExpansionInterface::EXIDeviceType::EthernetBuiltIn:
   {
-    BroadbandAdapterSettingsDialog(this, BroadbandAdapterSettingsDialog::Type::BuiltIn).exec();
+    BroadbandAdapterSettingsDialog dialog(this, BroadbandAdapterSettingsDialog::Type::BuiltIn);
+    SetQWidgetWindowDecorations(&dialog);
+    dialog.exec();
     return;
   }
   default:
@@ -410,7 +421,7 @@ void GameCubePane::BrowseMemcard(ExpansionInterface::Slot slot)
   const QString filename = DolphinFileDialog::getSaveFileName(
       this, tr("Choose a file to open or create"),
       QString::fromStdString(File::GetUserPath(D_GCUSER_IDX)),
-      tr("GameCube Memory Cards (*.raw *.gcp)"), 0, QFileDialog::DontConfirmOverwrite);
+      tr("GameCube Memory Cards (*.raw *.gcp)"), nullptr, QFileDialog::DontConfirmOverwrite);
 
   if (!filename.isEmpty())
     SetMemcard(slot, filename);
@@ -618,7 +629,7 @@ void GameCubePane::BrowseAGPRom(ExpansionInterface::Slot slot)
 
   QString filename = DolphinFileDialog::getSaveFileName(
       this, tr("Choose a file to open"), QString::fromStdString(File::GetUserPath(D_GCUSER_IDX)),
-      tr("Game Boy Advance Carts (*.gba)"), 0, QFileDialog::DontConfirmOverwrite);
+      tr("Game Boy Advance Carts (*.gba)"), nullptr, QFileDialog::DontConfirmOverwrite);
 
   if (!filename.isEmpty())
     SetAGPRom(slot, filename);

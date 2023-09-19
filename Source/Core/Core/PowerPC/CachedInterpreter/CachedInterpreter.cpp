@@ -10,6 +10,7 @@
 #include "Core/HLE/HLE.h"
 #include "Core/HW/CPU.h"
 #include "Core/PowerPC/Gekko.h"
+#include "Core/PowerPC/Interpreter/Interpreter.h"
 #include "Core/PowerPC/Jit64Common/Jit64Constants.h"
 #include "Core/PowerPC/PPCAnalyst.h"
 #include "Core/PowerPC/PowerPC.h"
@@ -81,12 +82,13 @@ CachedInterpreter::~CachedInterpreter() = default;
 
 void CachedInterpreter::Init()
 {
+  RefreshConfig();
+
   m_code.reserve(CODE_SIZE / sizeof(Instruction));
 
   jo.enableBlocklink = false;
 
   m_block_cache.Init();
-  UpdateMemoryAndExceptionOptions();
 
   code_block.m_stats = &js.st;
   code_block.m_gpa = &js.gpa;
@@ -214,7 +216,7 @@ bool CachedInterpreter::CheckFPU(CachedInterpreter& cached_interpreter, u32 data
   if (!ppc_state.msr.FP)
   {
     ppc_state.Exceptions |= EXCEPTION_FPU_UNAVAILABLE;
-    PowerPC::CheckExceptions();
+    cached_interpreter.m_system.GetPowerPC().CheckExceptions();
     ppc_state.downcount -= data;
     return true;
   }
@@ -226,7 +228,7 @@ bool CachedInterpreter::CheckDSI(CachedInterpreter& cached_interpreter, u32 data
   auto& ppc_state = cached_interpreter.m_ppc_state;
   if (ppc_state.Exceptions & EXCEPTION_DSI)
   {
-    PowerPC::CheckExceptions();
+    cached_interpreter.m_system.GetPowerPC().CheckExceptions();
     ppc_state.downcount -= data;
     return true;
   }
@@ -238,7 +240,7 @@ bool CachedInterpreter::CheckProgramException(CachedInterpreter& cached_interpre
   auto& ppc_state = cached_interpreter.m_ppc_state;
   if (ppc_state.Exceptions & EXCEPTION_PROGRAM)
   {
-    PowerPC::CheckExceptions();
+    cached_interpreter.m_system.GetPowerPC().CheckExceptions();
     ppc_state.downcount -= data;
     return true;
   }
@@ -247,7 +249,7 @@ bool CachedInterpreter::CheckProgramException(CachedInterpreter& cached_interpre
 
 bool CachedInterpreter::CheckBreakpoint(CachedInterpreter& cached_interpreter, u32 data)
 {
-  PowerPC::CheckBreakPoints();
+  cached_interpreter.m_system.GetPowerPC().CheckBreakPoints();
   if (cached_interpreter.m_system.GetCPU().GetState() != CPU::State::Running)
   {
     cached_interpreter.m_ppc_state.downcount -= data;
@@ -295,7 +297,7 @@ void CachedInterpreter::Jit(u32 address)
     // Address of instruction could not be translated
     m_ppc_state.npc = nextPC;
     m_ppc_state.Exceptions |= EXCEPTION_ISI;
-    PowerPC::CheckExceptions();
+    m_system.GetPowerPC().CheckExceptions();
     WARN_LOG_FMT(POWERPC, "ISI exception at {:#010x}", nextPC);
     return;
   }
@@ -310,7 +312,6 @@ void CachedInterpreter::Jit(u32 address)
   js.numFloatingPointInst = 0;
   js.curBlock = b;
 
-  b->checkedEntry = GetCodePtr();
   b->normalEntry = GetCodePtr();
 
   for (u32 i = 0; i < code_block.m_num_instructions; i++)
@@ -329,7 +330,8 @@ void CachedInterpreter::Jit(u32 address)
     if (!op.skip)
     {
       const bool breakpoint =
-          m_enable_debugging && PowerPC::breakpoints.IsAddressBreakPoint(op.address);
+          m_enable_debugging &&
+          m_system.GetPowerPC().GetBreakPoints().IsAddressBreakPoint(op.address);
       const bool check_fpu = (op.opinfo->flags & FL_USE_FPU) && !js.firstFPInstructionFound;
       const bool endblock = (op.opinfo->flags & FL_ENDBLOCK) != 0;
       const bool memcheck = (op.opinfo->flags & FL_LOADSTORE) && jo.memcheck;
@@ -372,7 +374,7 @@ void CachedInterpreter::Jit(u32 address)
   }
   m_code.emplace_back();
 
-  b->codeSize = (u32)(GetCodePtr() - b->checkedEntry);
+  b->codeSize = static_cast<u32>(GetCodePtr() - b->normalEntry);
   b->originalSize = code_block.m_num_instructions;
 
   m_block_cache.FinalizeBlock(*b, jo.enableBlocklink, code_block.m_physical_addresses);
@@ -382,5 +384,5 @@ void CachedInterpreter::ClearCache()
 {
   m_code.clear();
   m_block_cache.Clear();
-  UpdateMemoryAndExceptionOptions();
+  RefreshConfig();
 }

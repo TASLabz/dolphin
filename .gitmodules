@@ -51,6 +51,15 @@
 [submodule "Externals/gtest"]
 	path = Externals/gtest
 	url = https://github.com/google/googletest.git
+[submodule "Externals/rcheevos/rcheevos"]
+	path = Externals/rcheevos/rcheevos
+	url = https://github.com/RetroAchievements/rcheevos.git
+[submodule "Externals/libadrenotools"]
+	path = Externals/libadrenotools
+	url = https://github.com/bylaws/libadrenotools.git
+[submodule "Externals/curl/curl"]
+	path = Externals/curl/curl
+	url = https://github.com/curl/curl.git
 [submodule "Externals/python"]
 	path = Externals/python
 	url = https://github.com/Felk/ext-python.git

@@ -61,6 +61,7 @@ public:
     u32 entry_address;
   };
 
+  void UpdateMembase();
   void SetProfilingState(ProfilingState state);
   void WriteProfileResults(const std::string& filename) const;
   void GetProfileResults(Profiler::ProfileStats* prof_stats) const;
@@ -82,8 +83,8 @@ public:
   void InvalidateICache(u32 address, u32 size, bool forced);
   void InvalidateICacheLine(u32 address);
   void InvalidateICacheLines(u32 address, u32 count);
-  static void InvalidateICacheLineFromJIT(u32 address, u32 dummy, JitInterface& jit_interface);
-  static void InvalidateICacheLinesFromJIT(u32 address, u32 count, JitInterface& jit_interface);
+  static void InvalidateICacheLineFromJIT(JitInterface& jit_interface, u32 address);
+  static void InvalidateICacheLinesFromJIT(JitInterface& jit_interface, u32 address, u32 count);
 
   enum class ExceptionType
   {

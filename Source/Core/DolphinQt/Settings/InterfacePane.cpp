@@ -54,6 +54,7 @@ static QComboBox* MakeLanguageComboBox()
       {QStringLiteral(u"Portugu\u00EAs (Brasil)"), "pt_BR"},  // Portuguese (Brazil)
       {QStringLiteral(u"Rom\u00E2n\u0103"), "ro"},            // Romanian
       {QStringLiteral(u"Srpski"), "sr"},                      // Serbian
+      {QStringLiteral(u"Suomi"), "fi"},                       // Finnish
       {QStringLiteral(u"Svenska"), "sv"},                     // Swedish
       {QStringLiteral(u"T\u00FCrk\u00E7e"), "tr"},            // Turkish
       {QStringLiteral(u"\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"), "el"},  // Greek
@@ -146,7 +147,7 @@ void InterfacePane::CreateUI()
   m_checkbox_use_userstyle = new QCheckBox(tr("Use Custom User Style"));
   m_checkbox_use_covers =
       new QCheckBox(tr("Download Game Covers from GameTDB.com for Use in Grid Mode"));
-  m_checkbox_show_debugging_ui = new QCheckBox(tr("Show Debugging UI"));
+  m_checkbox_show_debugging_ui = new QCheckBox(tr("Enable Debugging UI"));
   m_checkbox_focused_hotkeys = new QCheckBox(tr("Hotkeys Require Window Focus"));
   m_checkbox_disable_screensaver = new QCheckBox(tr("Inhibit Screensaver During Emulation"));
 
@@ -189,7 +190,8 @@ void InterfacePane::CreateInGame()
   m_vboxlayout_hide_mouse->addWidget(m_radio_cursor_visible_never);
   m_vboxlayout_hide_mouse->addWidget(m_radio_cursor_visible_always);
 
-  m_checkbox_lock_mouse = new QCheckBox(tr("Lock Mouse Cursor"));
+  // this ends up not being managed unless _WIN32, so lets not leak
+  m_checkbox_lock_mouse = new QCheckBox(tr("Lock Mouse Cursor"), this);
   m_checkbox_lock_mouse->setToolTip(tr("Will lock the Mouse Cursor to the Render Widget as long as "
                                        "it has focus. You can set a hotkey to unlock it."));
 
@@ -246,6 +248,8 @@ void InterfacePane::CreateInGame()
   groupbox_layout->addWidget(mouse_groupbox);
 #ifdef _WIN32
   groupbox_layout->addWidget(m_checkbox_lock_mouse);
+#else
+  m_checkbox_lock_mouse->hide();
 #endif
 }
 
