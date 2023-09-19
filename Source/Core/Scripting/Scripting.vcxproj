@@ -17,6 +17,11 @@
     <Import Project="$(VSPropsDir)PCHUse.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <ItemGroup>
+    <ProjectReference Include="$(ExternalsDir)nativefiledialog-extended\nfd.vcxproj">
+      <Project>{7E931AE3-A819-4D06-AFDA-A39C372EB8CF}</Project>
+    </ProjectReference>
+  </ItemGroup>
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalIncludeDirectories>$(ExternalsDir)python\$(Platform)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
