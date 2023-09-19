@@ -608,6 +608,7 @@ bool Settings::IsScriptingVisible() const
 void Settings::RefreshWidgetVisibility()
 {
   emit DebugModeToggled(IsDebugModeEnabled());
+  emit ScriptingVisibilityChanged(IsScriptingVisible());
   emit LogVisibilityChanged(IsLogVisible());
   emit LogConfigVisibilityChanged(IsLogConfigVisible());
 }

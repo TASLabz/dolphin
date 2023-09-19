@@ -21,6 +21,9 @@ public:
   void ToggleSelectedScripts();
   void AddScript(std::string filename, bool enabled = false);
 
+protected:
+  void closeEvent(QCloseEvent*) override;
+
 private:
   bool eventFilter(QObject* object, QEvent* event);
 

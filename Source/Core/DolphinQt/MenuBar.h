@@ -248,7 +248,6 @@ private:
   QAction* m_show_memory;
   QAction* m_show_network;
   QAction* m_show_jit;
-  QAction* m_show_scripting;
   QMenu* m_cols_menu;
 
   // JIT

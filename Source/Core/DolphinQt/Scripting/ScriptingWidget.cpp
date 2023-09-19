@@ -65,8 +65,8 @@ ScriptingWidget::ScriptingWidget(QWidget* parent)
   main_widget->setLayout(main_layout);
   this->setWidget(main_widget);
 
-  connect(&Settings::Instance(), &Settings::ScriptingVisibilityChanged,
-          [this](bool visible) { setHidden(!visible); });
+  connect(&Settings::Instance(), &Settings::ScriptingVisibilityChanged, this,
+          &ScriptingWidget::setVisible);
 
   connect(button_add_new, &QPushButton::clicked, this, &ScriptingWidget::AddNewScript);
   connect(button_reload_selected, &QPushButton::clicked, this,
@@ -165,4 +165,9 @@ void ScriptingWidget::ToggleSelectedScripts()
 
   m_scripts_model->dataChanged(index_list.first(), index_list.last(),
                                QList<int>(Qt::CheckStateRole));
+}
+
+void ScriptingWidget::closeEvent(QCloseEvent*)
+{
+  Settings::Instance().SetScriptingVisible(false);
 }

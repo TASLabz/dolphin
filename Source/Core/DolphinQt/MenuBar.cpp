@@ -175,7 +175,6 @@ void MenuBar::OnDebugModeToggled(bool enabled)
   m_show_memory->setVisible(enabled);
   m_show_network->setVisible(enabled);
   m_show_jit->setVisible(enabled);
-  m_show_scripting->setVisible(enabled);
 
   if (enabled)
   {
@@ -385,6 +384,13 @@ void MenuBar::UpdateStateSlotMenu()
 void MenuBar::AddViewMenu()
 {
   QMenu* view_menu = addMenu(tr("&View"));
+
+  QAction* show_scripting = view_menu->addAction(tr("&Scripting"));
+  show_scripting->setCheckable(true);
+  show_scripting->setChecked(Settings::Instance().IsScriptingVisible());
+
+  connect(show_scripting, &QAction::toggled, &Settings::Instance(), &Settings::SetScriptingVisible);
+
   QAction* show_log = view_menu->addAction(tr("Show &Log"));
   show_log->setCheckable(true);
   show_log->setChecked(Settings::Instance().IsLogVisible());
@@ -404,6 +410,8 @@ void MenuBar::AddViewMenu()
 
   connect(show_toolbar, &QAction::toggled, &Settings::Instance(), &Settings::SetToolBarVisible);
 
+  connect(&Settings::Instance(), &Settings::ScriptingVisibilityChanged, show_scripting,
+          &QAction::setChecked);
   connect(&Settings::Instance(), &Settings::LogVisibilityChanged, show_log, &QAction::setChecked);
   connect(&Settings::Instance(), &Settings::LogConfigVisibilityChanged, show_log_config,
           &QAction::setChecked);
@@ -483,12 +491,6 @@ void MenuBar::AddViewMenu()
   m_show_jit->setChecked(Settings::Instance().IsJITVisible());
   connect(m_show_jit, &QAction::toggled, &Settings::Instance(), &Settings::SetJITVisible);
   connect(&Settings::Instance(), &Settings::JITVisibilityChanged, m_show_jit, &QAction::setChecked);
-
-  m_show_scripting = view_menu->addAction(tr("&Scripting"));
-  m_show_scripting->setCheckable(true);
-  m_show_scripting->setChecked(Settings::Instance().IsScriptingVisible());
-  connect(m_show_scripting, &QAction::toggled, &Settings::Instance(), &Settings::SetScriptingVisible);
-  connect(&Settings::Instance(), &Settings::ScriptingVisibilityChanged, m_show_scripting, &QAction::setChecked);
 
   view_menu->addSeparator();
 
