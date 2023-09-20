@@ -5,6 +5,7 @@
 #pragma once
 
 #include <QDockWidget>
+#include <QPushButton>
 #include <QTableView>
 
 #include "DolphinQt/Scripting/ScriptsListModel.h"
@@ -14,6 +15,7 @@ class ScriptingWidget : public QDockWidget
   Q_OBJECT
 public:
   ScriptingWidget(QWidget* parent = nullptr);
+  void UpdateIcons();
   void PopulateScripts();
   void AddNewScript();
   void RestartSelectedScripts();
@@ -26,6 +28,10 @@ protected:
 
 private:
   bool eventFilter(QObject* object, QEvent* event);
+
+  QPushButton* m_button_add_new;
+  QPushButton* m_button_reload_selected;
+  QPushButton* m_button_remove_selected;
 
   ScriptsListModel* m_scripts_model;
   QTableView* m_table_view;
