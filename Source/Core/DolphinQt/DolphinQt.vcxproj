@@ -453,6 +453,9 @@
     <ProjectReference Include="$(DolphinRootDir)Languages\Languages.vcxproj">
       <Project>{0e033be3-2e08-428e-9ae9-bc673efa12b5}</Project>
     </ProjectReference>
+    <ProjectReference Include="$(CoreDir)Scripting\Scripting.vcxproj">
+      <Project>{83794107-D372-4804-B463-E2719B50FB6B}</Project>
+    </ProjectReference>
     <!--
       This project uses its own PCH during compile (because RTTI setting differs),
       but we must also link the "main" pch for the dependants (DolphinLib)
