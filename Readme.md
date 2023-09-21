@@ -127,3 +127,7 @@ There is nothing fundamentally stopping this to work on ARM as well,
 but currently only the Python [externals](Externals) for Windows x86-64 are bundled.
 There are no embeddable Python distribution for ARM64 readily available on python.org,
 so preparing the right externals could be a bit difficult (I haven't tried).
+
+## Building on linux
+
+Instead of the usual `mkdir Build && cd Build && cmake .. && make -j$(nproc)`, instead build and install gcc version 13.2.0 with no arguments to `configure` and run `cmake -D CMAKE_CXX_COMPILER=/usr/local/bin/g++ -D CMAKE_C_COMPILER=/usr/local/bin/gcc -D CMAKE_CXX_FLAGS=-static-libstdc++ ..` instead of `cmake ..`. Minor tweaking is required.
