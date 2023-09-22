@@ -91,6 +91,16 @@ def read_f64(addr: int, /) -> float:
     """
 
 
+def read_bytes(addr: int, size: int, /) -> bytearray:
+    """
+    Reads size bytes and outputs a bytearray of length size.
+    
+    :param addr: memory address to start reading from
+    :param size: number of bytes to read
+    :return: bytearray containing the read bytes
+    """
+
+
 def invalidate_icache(addr: int, size: int, /) -> None:
     """
     Invalidates JIT cached code between the address and address + size, \
@@ -198,4 +208,14 @@ def write_f64(addr: int, value: float, /) -> None:
 
     :param addr: memory address to read from
     :param value: value as floating point number
+    """
+    
+    
+def write_bytes(addr: int, bytes: bytearray, /) -> None:
+    """
+    Writes each byte from the provided bytearray,
+    starting from addr.
+    
+    :param addr: memory address to start writing to
+    :param bytes: bytearray of bytes to write
     """

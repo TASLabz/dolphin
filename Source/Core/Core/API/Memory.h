@@ -70,6 +70,11 @@ inline double Read_F64(const Core::CPUThreadGuard& guard, u32 addr)
   return guard.GetSystem().GetMMU().HostRead_F64(guard, addr);
 }
 
+inline char* Read_Bytes(const Core::CPUThreadGuard& guard, u32 addr, u32 size)
+{
+  return guard.GetSystem().GetMMU().HostRead_Bytes(guard, addr, size);
+}
+
 // memory writing: arguments of write functions are swapped (address first) to be consistent with other scripting APIs
 
 inline void InvalidateICache(const Core::CPUThreadGuard &guard, u32 addr, u32 size)
@@ -126,6 +131,11 @@ inline void Write_F32(const Core::CPUThreadGuard& guard, u32 addr, float val)
 inline void Write_F64(const Core::CPUThreadGuard& guard, u32 addr, double val)
 {
   guard.GetSystem().GetMMU().HostWrite_F64(guard, val, addr);
+}
+
+inline void Write_Bytes(const Core::CPUThreadGuard& guard, u32 addr, char* bytes, size_t size)
+{
+  guard.GetSystem().GetMMU().HostWrite_Bytes(guard, addr, bytes, size);
 }
 
 }  // namespace API::Memory
