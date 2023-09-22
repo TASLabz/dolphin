@@ -21,24 +21,29 @@
 
 #include "Common/MsgHandler.h"
 #include "Common/FileUtil.h"
+#include "DolphinQt/Resources.h"
 #include "DolphinQt/Scripting/ScriptingWidget.h"
 #include "DolphinQt/Settings.h"
 
 #include "Scripting/ScriptList.h"
 #include "Scripting/ScriptingEngine.h"
 
+static QSize ICON_SIZE(16, 16);
+
 ScriptingWidget::ScriptingWidget(QWidget* parent)
 {
   setWindowTitle(tr("Scripts"));
 
   // actions
-  QPushButton* button_add_new = new QPushButton(tr("Add New Script"));
-  QPushButton* button_reload_selected = new QPushButton(tr("Restart Selected Script"));
-  QPushButton* button_remove_selected = new QPushButton(tr("Remove Selected Script"));
+  m_button_add_new = new QPushButton();
+  m_button_reload_selected = new QPushButton();
+  m_button_remove_selected = new QPushButton();
+  UpdateIcons();
+
   QHBoxLayout* actions_layout = new QHBoxLayout;
-  actions_layout->addWidget(button_add_new);
-  actions_layout->addWidget(button_reload_selected);
-  actions_layout->addWidget(button_remove_selected);
+  actions_layout->addWidget(m_button_add_new);
+  actions_layout->addWidget(m_button_reload_selected);
+  actions_layout->addWidget(m_button_remove_selected);
   QWidget* actions_widget = new QWidget;
   actions_widget->setLayout(actions_layout);
 
@@ -68,13 +73,26 @@ ScriptingWidget::ScriptingWidget(QWidget* parent)
   connect(&Settings::Instance(), &Settings::ScriptingVisibilityChanged, this,
           &ScriptingWidget::setVisible);
 
-  connect(button_add_new, &QPushButton::clicked, this, &ScriptingWidget::AddNewScript);
-  connect(button_reload_selected, &QPushButton::clicked, this,
+  connect(m_button_add_new, &QPushButton::clicked, this, &ScriptingWidget::AddNewScript);
+  connect(m_button_reload_selected, &QPushButton::clicked, this,
           &ScriptingWidget::RestartSelectedScripts);
-  connect(button_remove_selected, &QPushButton::clicked, this,
+  connect(m_button_remove_selected, &QPushButton::clicked, this,
           &ScriptingWidget::RemoveSelectedScripts);
+  connect(&Settings::Instance(), &Settings::ThemeChanged, this, &ScriptingWidget::UpdateIcons);
 
   PopulateScripts();
+}
+
+void ScriptingWidget::UpdateIcons()
+{
+  m_button_add_new->setIcon(Resources::GetThemeIcon("add"));
+  m_button_add_new->setIconSize(ICON_SIZE);
+
+  m_button_reload_selected->setIcon(Resources::GetThemeIcon("refresh"));
+  m_button_reload_selected->setIconSize(ICON_SIZE);
+
+  m_button_remove_selected->setIcon(Resources::GetThemeIcon("remove"));
+  m_button_remove_selected->setIconSize(ICON_SIZE);
 }
 
 // Reads the scripts present in Load/Scripts/ and adds to the widget list

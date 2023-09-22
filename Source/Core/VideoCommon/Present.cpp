@@ -520,18 +520,6 @@ void Presenter::UpdateDrawRectangle()
 
   int int_draw_width;
   int int_draw_height;
-
-  // Malleo - New feature to lock game render to right side of render widget.
-  // This will maximize the amount of contiguous black space because
-  // it's not split between both sides of game render.
-  // This is really only useful when scripts send text to the GUI.
-  float width_div = Config::Get(Config::MAIN_RENDER_WINDOW_LOCK_RIGHT) ? 1.0 : 2.0;
-
-  m_target_rectangle.left =
-    static_cast<int>(std::round(win_width / width_div - draw_width / width_div));
-  m_target_rectangle.top = static_cast<int>(std::round(win_height / 2.0 - draw_height / 2.0));
-  m_target_rectangle.right = m_target_rectangle.left + static_cast<int>(draw_width);
-  m_target_rectangle.bottom = m_target_rectangle.top + static_cast<int>(draw_height);
   
   if (g_frame_dumper->IsFrameDumping())
   {
@@ -552,7 +540,14 @@ void Presenter::UpdateDrawRectangle()
     int_draw_height = std::get<1>(int_draw_res);
   }
 
-  m_target_rectangle.left = static_cast<int>(std::round(win_width / 2.0 - int_draw_width / 2.0));
+  // Malleo - New feature to lock game render to right side of render widget.
+  // This will maximize the amount of contiguous black space because
+  // it's not split between both sides of game render.
+  // This is really only useful when scripts send text to the GUI.
+  float width_div = Config::Get(Config::MAIN_RENDER_WINDOW_LOCK_RIGHT) ? 1.0 : 2.0;
+
+  m_target_rectangle.left =
+      static_cast<int>(std::round(win_width / width_div - int_draw_width / width_div));
   m_target_rectangle.top = static_cast<int>(std::round(win_height / 2.0 - int_draw_height / 2.0));
   m_target_rectangle.right = m_target_rectangle.left + int_draw_width;
   m_target_rectangle.bottom = m_target_rectangle.top + int_draw_height;
