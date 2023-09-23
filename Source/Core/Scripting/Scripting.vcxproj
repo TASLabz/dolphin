@@ -37,6 +37,7 @@
   <ItemGroup>
     <ClCompile Include="Python\coroutine.cpp" />
     <ClCompile Include="Python\Modules\controllermodule.cpp" />
+    <ClCompile Include="Python\Modules\debugmodule.cpp" />
     <ClCompile Include="Python\Modules\doliomodule.cpp" />
     <ClCompile Include="Python\Modules\dolphinmodule.cpp" />
     <ClCompile Include="Python\Modules\eventmodule.cpp" />
@@ -54,6 +55,7 @@
     <ClInclude Include="ScriptList.h" />
     <ClInclude Include="Python\coroutine.h" />
     <ClInclude Include="Python\Modules\controllermodule.h" />
+    <ClInclude Include="Python\Modules\debugmodule.h" />
     <ClInclude Include="Python\Modules\doliomodule.h" />
     <ClInclude Include="Python\Modules\dolphinmodule.h" />
     <ClInclude Include="Python\Modules\eventmodule.h" />

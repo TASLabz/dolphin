@@ -13,6 +13,7 @@
 
 #include "Scripting/Python/coroutine.h"
 #include "Scripting/Python/Modules/controllermodule.h"
+#include "Scripting/Python/Modules/debugmodule.h"
 #include "Scripting/Python/Modules/doliomodule.h"
 #include "Scripting/Python/Modules/dolphinmodule.h"
 #include "Scripting/Python/Modules/eventmodule.h"
@@ -44,6 +45,8 @@ static PyThreadState* InitMainPythonInterpreter()
     ERROR_LOG_FMT(SCRIPTING, "failed to add dolio_stderr to builtins");
   if (PyImport_AppendInittab("dolphin_memory", PyInit_memory) == -1)
     ERROR_LOG_FMT(SCRIPTING, "failed to add dolphin_memory to builtins");
+  if (PyImport_AppendInittab("dolphin_debug", PyInit_debug) == -1)
+    ERROR_LOG_FMT(SCRIPTING, "failed to add dolphin_debug to builtins");
   if (PyImport_AppendInittab("dolphin_event", PyInit_event) == -1)
     ERROR_LOG_FMT(SCRIPTING, "failed to add dolphin_event to builtins");
   if (PyImport_AppendInittab("dolphin_gui", PyInit_gui) == -1)

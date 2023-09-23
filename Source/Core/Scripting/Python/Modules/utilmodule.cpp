@@ -8,6 +8,7 @@
 #include "Core/Config/MainSettings.h"
 #include "Core/Core.h"
 #include "Core/ConfigManager.h"
+#include "Core/System.h"
 #include "Scripting/Python/Utils/module.h"
 #include "Scripting/Python/Utils/as_py_func.h"
 
@@ -101,6 +102,28 @@ static PyObject* open_file(PyObject* module, PyObject* args)
   return Py_BuildValue("s", filePath.c_str());
 }
 
+static PyObject* toggle_play(PyObject* module, PyObject* args)
+{
+  // Play/Pause can only be done on the host thread
+  Core::QueueHostJob([]() {
+    Core::State current_state = Core::GetState();
+
+    switch (current_state)
+    {
+    case Core::State::Paused:
+      Core::SetState(Core::State::Running);
+      break;
+    case Core::State::Running:
+      Core::SetState(Core::State::Paused);
+      break;
+    default:
+      break;
+    }
+  });
+
+  Py_RETURN_NONE;
+}
+
 static void setup_file_module(PyObject* module, FileState* state)
 {
   // I don't think we need anything here yet
@@ -119,6 +142,7 @@ PyMODINIT_FUNC PyInit_dol_utils()
                                   {"stop_audiodump", stop_audiodump, METH_NOARGS, ""},
                                   {"is_audiodumping", is_audiodumping, METH_NOARGS, ""},
                                   {"save_screenshot", (PyCFunction) save_screenshot, METH_VARARGS | METH_KEYWORDS, ""},
+                                  {"toggle_play", toggle_play, METH_NOARGS, ""},
                                   {nullptr, nullptr, 0, nullptr}};
   static PyModuleDef module_def =
       Py::MakeStatefulModuleDef<FileState, setup_file_module>("dolphin_utils", methods);
