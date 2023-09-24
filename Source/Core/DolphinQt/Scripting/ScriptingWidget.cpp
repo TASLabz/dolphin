@@ -174,6 +174,10 @@ void ScriptingWidget::AddScript(std::string filename, bool enabled /* = false */
 void ScriptingWidget::ToggleSelectedScripts()
 {
   QModelIndexList index_list = m_table_view->selectionModel()->selectedRows();
+
+  if (index_list.isEmpty())
+    return;
+
   for (const QModelIndex& q_index : index_list)
   {
     Qt::CheckState prev_state = (Qt::CheckState) m_scripts_model->data(q_index, Qt::CheckStateRole).toUInt();
