@@ -128,6 +128,8 @@
 #include "InputCommon/ControllerInterface/ControllerInterface.h"
 #include "InputCommon/GCAdapter.h"
 
+#include "Scripting/ScriptList.h"
+
 #include "UICommon/DiscordPresence.h"
 #include "UICommon/GameFile.h"
 #include "UICommon/ResourcePack/Manager.h"
@@ -315,7 +317,7 @@ MainWindow::MainWindow(std::unique_ptr<BootParameters> boot_parameters,
 
   if (script.has_value())
   {
-    m_scripting_widget->AddScript(script.value(), true);
+    Scripts::g_scripts[script.value()] = nullptr;
   }
 }
 

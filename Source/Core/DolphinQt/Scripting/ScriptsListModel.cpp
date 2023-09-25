@@ -4,21 +4,45 @@
 
 #include "ScriptsListModel.h"
 
+#include "Common/FileUtil.h"
 #include "Core/Core.h"
-
 #include "Scripting/ScriptList.h"
 
-int ScriptsListModel::rowCount(const QModelIndex& parent) const
+ScriptsFileSystemModel::ScriptsFileSystemModel(QObject* parent /* = nullptr */)
+    : QFileSystemModel(parent)
 {
-  return static_cast<int>(Scripts::g_scripts.size());
+  QStringList filters;
+  filters.append(QString::fromStdString("*.py"));
+  filters.append(QString::fromStdString("*.py3"));
+  setNameFilters(filters);
+  setNameFilterDisables(false);
+  setFilter(QDir::Files | QDir::AllDirs | QDir::NoDotAndDotDot);
+
+  AutoRunScripts();
 }
 
-int ScriptsListModel::columnCount(const QModelIndex& parent) const
+void ScriptsFileSystemModel::AutoRunScripts()
 {
-  return 1;
+  // In scripts dir, look for all files that start with an underscore
+  // This is apparently very hard to do via the QFileSystemModel class,
+  // because it does not compute subfolder files unless you expand the folder first.
+  QString dir = QString::fromStdString(File::GetUserPath(D_SCRIPTS_IDX));
+  QStringList nameFilter{QStringLiteral("_*.py"), QStringLiteral("_*.py3")};
+  QDirIterator it = QDirIterator(dir, nameFilter, QDir::NoFilter, QDirIterator::Subdirectories);
+
+  while (it.hasNext())
+  {
+    QFileInfo file = it.nextFileInfo();
+
+    // Ignore __init__.py files, as these are used to make subfolder modules visible
+    if (file.fileName() == QStringLiteral("__init__.py"))
+      continue;
+
+    Scripts::g_scripts[file.absoluteFilePath().toStdString()] = nullptr;
+  }
 }
 
-Qt::ItemFlags ScriptsListModel::flags(const QModelIndex& index) const
+Qt::ItemFlags ScriptsFileSystemModel::flags(const QModelIndex& index) const
 {
   Qt::ItemFlags result = QAbstractItemModel::flags(index);
   if (index.column() == 0)
@@ -27,33 +51,30 @@ Qt::ItemFlags ScriptsListModel::flags(const QModelIndex& index) const
   return result;
 }
 
-QVariant ScriptsListModel::data(const QModelIndex& index, int role) const
+QVariant ScriptsFileSystemModel::data(const QModelIndex& index, int role) const
 {
-  if (!index.isValid() || (size_t)index.row() >= Scripts::g_scripts.size())
+  if (!index.isValid())
     return QVariant();
 
-  switch (role)
-  {
-  case Qt::DisplayRole:
-  case Qt::EditRole:
-  {
-    if (index.column() == 0)
-      return QVariant(
-          QString::fromStdString(Scripts::g_scripts[index.row()].path.filename().string()));
+  // Hide filetype icons except for folders
+  if (role == Qt::DecorationRole && !hasChildren(index))
     return QVariant();
-  }
-  case Qt::CheckStateRole:
+
+  if (role == Qt::CheckStateRole)
   {
-    if (index.column() == 0)
-      return Scripts::g_scripts[index.row()].enabled ? Qt::Checked : Qt::Unchecked;
-    return QVariant();
+    if (hasChildren(index))
+      return QVariant();
+
+    QString path = filePath(index);
+
+    bool script_enabled = Scripts::g_scripts.find(path.toStdString()) != Scripts::g_scripts.end();
+    return script_enabled ? Qt::Checked : Qt::Unchecked;
   }
-  default:
-    return QVariant();
-  }
+
+  return QFileSystemModel::data(index, role);
 }
 
-bool ScriptsListModel::setData(const QModelIndex& index, const QVariant& value, int role)
+bool ScriptsFileSystemModel::setData(const QModelIndex& index, const QVariant& value, int role)
 {
   if (!index.isValid() || index.column() > 0)
     return false;
@@ -62,57 +83,50 @@ bool ScriptsListModel::setData(const QModelIndex& index, const QVariant& value, 
   {
   case Qt::CheckStateRole:
   {
-    Scripts::g_scripts[index.row()].enabled =
-        ((Qt::CheckState)value.toUInt() == Qt::Checked) ? true : false;
-    if (Scripts::g_scripts[index.row()].enabled)
+    // Check if the selected script is currently running
+    std::string file_path = filePath(index).toStdString();
+    if (Scripts::g_scripts.find(file_path) != Scripts::g_scripts.end())
     {
-      Scripting::ScriptingBackend* backend = nullptr;
-      if (Scripts::g_scripts_started)
-        backend = new Scripting::ScriptingBackend(Scripts::g_scripts[index.row()].path);
-      Scripts::g_scripts[index.row()].backend = backend;
+      Q_ASSERT((Qt::CheckState)value.toUInt() == Qt::Unchecked);
+
+      // Disable the script
+      delete Scripts::g_scripts[file_path];
+      Scripts::g_scripts.erase(file_path);
+
+      return false;
     }
     else
     {
-      delete Scripts::g_scripts[index.row()].backend;
-      Scripts::g_scripts[index.row()].backend = nullptr;
+      Q_ASSERT((Qt::CheckState)value.toUInt() == Qt::Checked);
+
+      // Add the script
+      Scripting::ScriptingBackend* backend = nullptr;
+      if (Scripts::g_scripts_started)
+        backend = new Scripting::ScriptingBackend(file_path);
+      Scripts::g_scripts[file_path] = backend;
+
+      return true;
     }
-    return true;
   }
   default:
     return false;
   }
 }
 
-void ScriptsListModel::Add(std::filesystem::path path, bool enabled /* = false */)
+void ScriptsFileSystemModel::Restart(const QModelIndex& index)
 {
-  beginInsertRows(QModelIndex(), this->rowCount(), this->rowCount());
-  Scripting::ScriptingBackend* backend = nullptr;
-  if (enabled && Scripts::g_scripts_started)
-    backend = new Scripting::ScriptingBackend(path);
-  Scripts::g_scripts.emplace_back(Scripts::Script{path, backend, enabled});
-  endInsertRows();
-}
-
-void ScriptsListModel::Restart(int index)
-{
-  // If script was not enabled, then we don't need to do anything
-  if (!Scripts::g_scripts.at(index).enabled)
+  if (!index.isValid())
     return;
 
-  std::filesystem::path path = Scripts::g_scripts.at(index).path;
-  delete Scripts::g_scripts.at(index).backend;
+  QString path = filePath(index);
 
-  Scripting::ScriptingBackend* backend = nullptr;
-  if (Scripts::g_scripts_started)
-    backend = new Scripting::ScriptingBackend(path);
-
-  Scripts::g_scripts.at(index) = Scripts::Script{path, backend, true};
-}
-
-void ScriptsListModel::Remove(int index)
-{
-  beginRemoveRows(QModelIndex(), index, index);
-  delete Scripts::g_scripts[index].backend;
-  Scripts::g_scripts.erase(Scripts::g_scripts.begin() + index);
-  endRemoveRows();
+  auto iter = Scripts::g_scripts.find(path.toStdString());
+  if (iter != Scripts::g_scripts.end())
+  {
+    if (iter->second != nullptr)
+    {
+      delete iter->second;
+      iter->second = new Scripting::ScriptingBackend(path.toStdString());
+    }
+  }
 }
