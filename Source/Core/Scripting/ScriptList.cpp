@@ -32,6 +32,6 @@ void StopAllScripts()
   g_scripts_started = false;
 }
 
-std::unordered_map<std::filesystem::path, Scripting::ScriptingBackend*> g_scripts = {};
+std::unordered_map<std::string, Scripting::ScriptingBackend*> g_scripts = {};
 bool g_scripts_started = false;
 }  // namespace Scripts
