@@ -25,7 +25,7 @@ def set_memory_breakpoint(params: dict, /) -> None:
         - "At": u32 - the address to set the memory breakpoint at
         - "Start": u32, "End": u32 - the range of addresses to breakpoint within
         Followed by any of the following optional breakpoints:
-        - "BreakOnRoad": bool - whether the bp should trigger on memory read
+        - "BreakOnRead": bool - whether the bp should trigger on memory read
         - "BreakOnWrite": bool - whether the bp should trigger on memory write
         - "LogOnHit": bool - whether Dolphin should log when the bp is hit
         - "BreakOnHit": bool - whether execution should pause when the bp is hit
