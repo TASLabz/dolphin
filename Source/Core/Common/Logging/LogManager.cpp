@@ -31,7 +31,7 @@ const Config::Info<bool> LOGGER_WRITE_TO_CONSOLE{
 const Config::Info<bool> LOGGER_WRITE_TO_WINDOW{
     {Config::System::Logger, "Options", "WriteToWindow"}, true};
 const Config::Info<LogLevel> LOGGER_VERBOSITY{{Config::System::Logger, "Options", "Verbosity"},
-                                              LogLevel::LNOTICE};
+                                              LogLevel::LINFO};
 
 class FileLogListener : public LogListener
 {
@@ -164,10 +164,18 @@ LogManager::LogManager()
 
   for (auto& container : m_log)
   {
-    container.m_enable = Config::Get(
+    if (container.m_short_name == std::string("Scripting"))
+    {
+      container.m_enable = Config::Get(
+        Config::Info<bool>{{Config::System::Logger, "Logs", container.m_short_name}, true});
+    }
+    else
+    {
+      container.m_enable = Config::Get(
         Config::Info<bool>{{Config::System::Logger, "Logs", container.m_short_name}, false});
+    }
   }
-
+  
   m_path_cutoff_point = DeterminePathCutOffPoint();
 }
 
