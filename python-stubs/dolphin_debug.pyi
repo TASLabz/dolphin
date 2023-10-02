@@ -25,7 +25,7 @@ def set_memory_breakpoint(params: dict, /) -> None:
         - "At": u32 - the address to set the memory breakpoint at
         - "Start": u32, "End": u32 - the range of addresses to breakpoint within
         Followed by any of the following optional breakpoints:
-        - "BreakOnRead": bool - whether the bp should trigger on memory read
+        - "BreakOnRoad": bool - whether the bp should trigger on memory read
         - "BreakOnWrite": bool - whether the bp should trigger on memory write
         - "LogOnHit": bool - whether Dolphin should log when the bp is hit
         - "BreakOnHit": bool - whether execution should pause when the bp is hit
@@ -42,16 +42,6 @@ def remove_memory_breakpoint(addr: int, /) -> None:
     
     :param addr: address of the breakpoint to remove
     """
-
-
-
-
-
-
-
-
-
-
 
 
 def read_u8(addr: int, /) -> int:
@@ -156,8 +146,8 @@ def read_bytes(addr: int, size: int, /) -> bytearray:
 
 def invalidate_icache(addr: int, size: int, /) -> None:
     """
-    Invalidates JIT cached code between the address and address + size, \
-        forcing the JIT to refetch instructions instead of executing from its cache.
+    Invalidates JIT cached code between the address and address + size,
+    forcing the JIT to refetch instructions instead of executing from its cache.
 
     :param addr: memory address to start invalidation at
     :param size: size of the cache as integer
