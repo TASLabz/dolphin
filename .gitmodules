@@ -64,3 +64,6 @@
 	path = Externals/python
 	url = https://github.com/Felk/ext-python.git
 	branch = master
+[submodule "Externals/lz4/lz4"]
+	path = Externals/lz4/lz4
+	url = https://github.com/lz4/lz4

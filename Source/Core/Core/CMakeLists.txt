@@ -639,6 +639,7 @@ PRIVATE
   imgui # TODO imgui shouldn't be here
   fmt::fmt
   LZO::LZO
+  LZ4::LZ4
   ZLIB::ZLIB
 )
 
