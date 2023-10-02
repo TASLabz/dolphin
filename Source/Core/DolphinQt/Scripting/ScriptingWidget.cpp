@@ -3,6 +3,7 @@
 // Refer to the license.txt file included.
 
 #include <QCheckBox>
+#include <QDesktopServices>
 #include <QDirIterator>
 #include <QEvent>
 #include <QFileDialog>
@@ -41,11 +42,13 @@ ScriptingWidget::ScriptingWidget(QWidget* parent)
   // actions
   m_button_add_new = new QPushButton();
   m_button_reload_selected = new QPushButton();
+  m_button_open_folder = new QPushButton();
   UpdateIcons();
 
   QHBoxLayout* actions_layout = new QHBoxLayout;
   actions_layout->addWidget(m_button_add_new);
   actions_layout->addWidget(m_button_reload_selected);
+  actions_layout->addWidget(m_button_open_folder);
   QWidget* actions_widget = new QWidget;
   actions_widget->setLayout(actions_layout);
 
@@ -79,6 +82,7 @@ ScriptingWidget::ScriptingWidget(QWidget* parent)
   connect(m_button_add_new, &QPushButton::clicked, this, &ScriptingWidget::AddNewScript);
   connect(m_button_reload_selected, &QPushButton::clicked, this,
           &ScriptingWidget::RestartSelectedScripts);
+  connect(m_button_open_folder, &QPushButton::clicked, this, &ScriptingWidget::OpenScriptsFolder);
   connect(&Settings::Instance(), &Settings::ThemeChanged, this, &ScriptingWidget::UpdateIcons);
   connect(m_tree, &QTreeView::doubleClicked, this, &ScriptingWidget::ToggleSelectedScripts);
 }
@@ -90,6 +94,9 @@ void ScriptingWidget::UpdateIcons()
 
   m_button_reload_selected->setIcon(Resources::GetThemeIcon("refresh"));
   m_button_reload_selected->setIconSize(ICON_SIZE);
+
+  m_button_open_folder->setIcon(Resources::GetThemeIcon("open"));
+  m_button_open_folder->setIconSize(ICON_SIZE);
 }
 
 void ScriptingWidget::AddNewScript()
@@ -132,4 +139,12 @@ void ScriptingWidget::ToggleSelectedScripts()
 void ScriptingWidget::closeEvent(QCloseEvent*)
 {
   Settings::Instance().SetScriptingVisible(false);
+}
+
+void ScriptingWidget::OpenScriptsFolder()
+{
+  std::string path = File::GetUserPath(D_SCRIPTS_IDX);
+
+  QUrl url = QUrl::fromLocalFile(QString::fromStdString(path));
+  QDesktopServices::openUrl(url);
 }
