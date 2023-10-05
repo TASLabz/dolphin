@@ -32,6 +32,7 @@ signals:
   void SettingsPressed();
   void ControllersPressed();
   void GraphicsPressed();
+  void ScriptingPressed();
 
   void StepPressed();
   void StepOverPressed();
@@ -57,6 +58,7 @@ private:
   QAction* m_config_action;
   QAction* m_controllers_action;
   QAction* m_graphics_action;
+  QAction* m_script_action;
 
   QAction* m_step_action;
   QAction* m_step_over_action;
