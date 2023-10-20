@@ -17,13 +17,27 @@
 
 namespace Gecko
 {
+static std::string GetEndpoint(std::string gametdb_id)
+{
+  // This function can be modified to support retrieving Gecko Codes from other locations
+
+  const std::string id_prefix{gametdb_id.substr(0, 3)};
+
+  // Mario Kart Wii TAS-related codes
+  if (id_prefix == "RMC")
+    return "mkwtas.com/api/" + gametdb_id + ".txt";
+
+  // codes.rc24.xyz is a mirror of the now defunct geckocodes.org.
+  return "codes.rc24.xyz/txt.php?txt=" + gametdb_id;
+}
+
 std::vector<GeckoCode> DownloadCodes(std::string gametdb_id, bool* succeeded, bool use_https)
 {
   // TODO: Fix https://bugs.dolphin-emu.org/issues/11772 so we don't need this workaround
   const std::string protocol = use_https ? "https://" : "http://";
 
-  // codes.rc24.xyz is a mirror of the now defunct geckocodes.org.
-  std::string endpoint{protocol + "codes.rc24.xyz/txt.php?txt=" + gametdb_id};
+  const std::string endpoint = protocol + GetEndpoint(gametdb_id);
+
   Common::HttpRequest http;
 
   // The server always redirects once to the same location.
