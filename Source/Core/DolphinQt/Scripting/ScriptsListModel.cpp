@@ -92,8 +92,6 @@ bool ScriptsFileSystemModel::setData(const QModelIndex& index, const QVariant& v
       // Disable the script
       delete Scripts::g_scripts[file_path];
       Scripts::g_scripts.erase(file_path);
-
-      return false;
     }
     else
     {
@@ -104,9 +102,11 @@ bool ScriptsFileSystemModel::setData(const QModelIndex& index, const QVariant& v
       if (Scripts::g_scripts_started)
         backend = new Scripting::ScriptingBackend(file_path);
       Scripts::g_scripts[file_path] = backend;
-
-      return true;
     }
+
+    emit ScriptsFileSystemModel::dataChanged(index, index, QList<int>{role});
+
+    return true;
   }
   default:
     return false;

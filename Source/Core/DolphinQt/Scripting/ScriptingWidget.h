@@ -27,6 +27,9 @@ protected:
 
 private:
   void OnEmulationStateChanged(Core::State state);
+  void OnDataChanged(const QModelIndex& topLeft, const QModelIndex& bottomRight,
+                     const QList<int>& roles);
+
   void OpenScriptsFolder();
 
   QPushButton* m_button_add_new;
