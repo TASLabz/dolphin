@@ -8,7 +8,6 @@
 #include <QEvent>
 #include <QFileDialog>
 #include <QFileSystemModel>
-#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QKeyEvent>
@@ -25,6 +24,8 @@
 
 #include "Common/FileUtil.h"
 #include "Common/MsgHandler.h"
+#include "Core/Core.h"
+#include "Core/ConfigManager.h"
 #include "DolphinQt/QtUtils/ModalMessageBox.h"
 #include "DolphinQt/Resources.h"
 #include "DolphinQt/Scripting/ScriptingWidget.h"
@@ -65,14 +66,14 @@ ScriptingWidget::ScriptingWidget(QWidget* parent)
   m_tree->hideColumn(2);
   m_tree->hideColumn(3);
 
-  QGroupBox* scripts_group = new QGroupBox(tr("Loaded Scripts"));
+  m_scripts_group = new QGroupBox(tr("Script Directory"));
   QVBoxLayout* scripts_layout = new QVBoxLayout;
-  scripts_group->setLayout(scripts_layout);
+  m_scripts_group->setLayout(scripts_layout);
   scripts_layout->addWidget(m_tree);
 
   QVBoxLayout* main_layout = new QVBoxLayout;
   main_layout->addWidget(actions_widget);
-  main_layout->addWidget(scripts_group);
+  main_layout->addWidget(m_scripts_group);
   QWidget* main_widget = new QWidget;
   main_widget->setLayout(main_layout);
   this->setWidget(main_widget);
@@ -85,6 +86,9 @@ ScriptingWidget::ScriptingWidget(QWidget* parent)
   connect(m_button_open_folder, &QPushButton::clicked, this, &ScriptingWidget::OpenScriptsFolder);
   connect(&Settings::Instance(), &Settings::ThemeChanged, this, &ScriptingWidget::UpdateIcons);
   connect(m_tree, &QTreeView::doubleClicked, this, &ScriptingWidget::ToggleSelectedScripts);
+
+  connect(&Settings::Instance(), &Settings::EmulationStateChanged, this,
+          [this](Core::State state) { OnEmulationStateChanged(state); });
 }
 
 void ScriptingWidget::UpdateIcons()
@@ -147,4 +151,39 @@ void ScriptingWidget::OpenScriptsFolder()
 
   QUrl url = QUrl::fromLocalFile(QString::fromStdString(path));
   QDesktopServices::openUrl(url);
+}
+
+void ScriptingWidget::OnEmulationStateChanged(Core::State state)
+{
+  switch (state)
+  {
+  case Core::State::Starting:
+  {
+    SConfig& config = SConfig::GetInstance();
+
+    // e.g. RMCE01 prefix will be RMC
+    std::string game_id_prefix = config.GetGameID().substr(0, 3);
+    std::string path{File::GetUserPath(D_SCRIPTS_IDX) + game_id_prefix};
+    QModelIndex rootIdx = m_scripts_model->setRootPath(QString::fromStdString(path));
+    m_tree->setRootIndex(rootIdx);
+
+    QString scripts_title = QString::fromStdString("Script Directory (" + game_id_prefix + ")");
+    m_scripts_group->setTitle(scripts_title);
+
+    break;
+  }
+  case Core::State::Uninitialized:
+  {
+    // Reset QTreeView to root scripts dir
+    QModelIndex rootIdx =
+        m_scripts_model->setRootPath(QString::fromStdString(File::GetUserPath(D_SCRIPTS_IDX)));
+    m_tree->setRootIndex(rootIdx);
+
+    m_scripts_group->setTitle(tr("Script Directory"));
+
+    break;
+  }
+  default:
+    break;
+  }  
 }

@@ -6,6 +6,7 @@
 
 #include <QDockWidget>
 #include <QFileSystemModel>
+#include <QGroupBox>
 #include <QPushButton>
 #include <QTableView>
 #include <QTreeView>
@@ -25,11 +26,13 @@ protected:
   void closeEvent(QCloseEvent*) override;
 
 private:
+  void OnEmulationStateChanged(Core::State state);
   void OpenScriptsFolder();
 
   QPushButton* m_button_add_new;
   QPushButton* m_button_reload_selected;
   QPushButton* m_button_open_folder;
+  QGroupBox* m_scripts_group;
 
   ScriptsFileSystemModel* m_scripts_model;
   QTreeView* m_tree;
