@@ -164,6 +164,10 @@ void ScriptingWidget::OnEmulationStateChanged(Core::State state)
     // e.g. RMCE01 prefix will be RMC
     std::string game_id_prefix = config.GetGameID().substr(0, 3);
     std::string path{File::GetUserPath(D_SCRIPTS_IDX) + game_id_prefix};
+
+    if (!QDir(QString::fromStdString(path)).exists())
+      return;
+
     QModelIndex rootIdx = m_scripts_model->setRootPath(QString::fromStdString(path));
     m_tree->setRootIndex(rootIdx);
 
