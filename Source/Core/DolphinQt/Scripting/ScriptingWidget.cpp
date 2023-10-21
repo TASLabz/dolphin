@@ -103,6 +103,10 @@ void ScriptingWidget::AddNewScript()
 {
   QString filename = QFileDialog::getOpenFileName(this, tr("Add script"), QString(),
                                                   tr("Python scripts (*.py *.py3)"));
+
+  if (filename.isEmpty())
+    return;
+
   QFileInfo finfo(filename);
 
   QString newPath = QString::fromStdString(File::GetUserPath(D_SCRIPTS_IDX)) + finfo.fileName();
