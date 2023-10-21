@@ -29,6 +29,8 @@ Events can be listened for in a few ways. Some events may provide arguments, suc
 
 - Callback
 ```python
+from dolphin import event
+
 @event.on_savestatesave
 def my_callback(fromSlot : bool, slotNumber : int):
     if (fromSlot):
@@ -38,12 +40,29 @@ def my_callback(fromSlot : bool, slotNumber : int):
 ```
 - Async
 ```python
+from dolphin import event
+
 while True:
     (fromSlot, slotNumber) = await event.savestatesave()
     if (fromSlot):
         print(f"Loaded from slot {slotNumber}")
     else:
         print("Loaded from file")
+```
+
+### RAM Watch Example
+The following example shows how to read and display a u32 located at address 0x80000000 every frame:
+```python
+from dolphin import event, gui, memory
+
+@event.on_frameadvance
+def my_callback():
+    value = memory.read_u32(0x80000000)
+
+    position = (10, 10)
+    argb_color = 0xFFFFFFFF
+    text = f"{value}"
+    gui.draw_text(position, argb_color, text)
 ```
 
 ## Running Scripts
