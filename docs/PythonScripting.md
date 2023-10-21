@@ -22,7 +22,7 @@ Scripts can import various optional modules from dolphin, such as:
 - `event`: Supports listening for various events such as frame advances and savestate saves/loads
 - `gui`: Grants the ability to render text and polygons to the imgui game overlay (useful for RAM Watch displays)
 
-For a full definition of modules, see [python-stubs](python-stubs).
+For a full definition of modules, see [python-stubs](../python-stubs).
 
 ### Events
 Events can be listened for in a few ways. Some events may provide arguments, such as whether a savestate load was via a file or a slot.
