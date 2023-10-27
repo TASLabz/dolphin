@@ -12,13 +12,14 @@ Scripts and any user-defined helper files are located within `$DOLPHIN_USER_FOLD
     \__ SCRIPTS GO HERE
 ```
 `GAMEID` can be one or multiple directories which are named after a game's ID without a region (e.g. `RMC` for "Mario Kart Wii (All regions)").
+Subdirectories can be present and will be accessible during game run. Note that, if you organize subdirectories by region, Dolphin will still autorun any scripts with a filename prefixed by '_' present in the `GAMEID` directory and all subdirectories.
 
 `Modules` is automatically created by Dolphin and is the preferred location for any Python modules that game-specific scripts may import.
 
 ## Writing Scripts
 Scripts can import various optional modules from dolphin.
 
-- `controller`: Allows you to get/set controller information, for both Gamecube and Wii controllers
+- `controller`: Allows you to get/set controller information. Note that for Wii Remotes, the only motion supported via this module is pointing.
 - `debug`: Supports manipulation of code and memory breakpoints
 - `event`: Supports listening for various events such as frame advances and savestate saves/loads
 - `gui`: Grants the ability to render text and polygons to the imgui game overlay (useful for RAM Watch displays)
@@ -77,4 +78,4 @@ Upon loading a game, to hide scripts unrelated to the game you are playing, the 
 
 Scripts can be toggled by clicking the checkbox next to the script name. Even if a script is checked, it will not run until a game is booted up, and it will stop running when a game is shut down.
 
-Scripts with a filename prefixed by `_` will run automatically on game startup. This only applies to scripts within the `GAMEID` folder. Scripts in other directories will not run, even with the `_` prefix.
+Scripts with a filename prefixed by `_` will run automatically on game startup. This only applies to scripts within the `GAMEID` folder and any subfolders. Scripts in other directories will not run, even with the `_` prefix.
