@@ -9,6 +9,8 @@ add_library(scripting
   Python/PyScriptingBackend.h
   Python/Modules/controllermodule.cpp
   Python/Modules/controllermodule.h
+  Python/Modules/debugmodule.cpp
+  Python/Modules/debugmodule.h
   Python/Modules/doliomodule.cpp
   Python/Modules/doliomodule.h
   Python/Modules/dolphinmodule.cpp

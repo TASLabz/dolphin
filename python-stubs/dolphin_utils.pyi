@@ -52,3 +52,7 @@ def is_audiodumping() -> bool:
 
 def save_screenshot(filename: str | None = None) -> None:
     """Saves a screenshot of the running game."""
+
+
+def toggle_play() -> None:
+    """Plays/Pauses the current game."""

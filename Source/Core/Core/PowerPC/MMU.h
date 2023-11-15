@@ -139,6 +139,10 @@ public:
   static std::u16string HostGetU16String(const Core::CPUThreadGuard& guard, u32 address,
                                          size_t size = 0);
 
+  template <class T>
+  static size_t ReadAndCopyBytes(const Core::CPUThreadGuard& guard, char* buff, u32 address);
+  static char* HostRead_Bytes(const Core::CPUThreadGuard& guard, u32 address, u32 size);
+
   // Try to read a value from emulated memory at the given address in the given memory space.
   // If the read succeeds, the returned value will be present and the ReadResult contains the read
   // value and information on whether the given address had to be translated or not. Unlike the
@@ -181,6 +185,10 @@ public:
   static void HostWrite_S64(const Core::CPUThreadGuard& guard, u64 var, u32 address);
   static void HostWrite_F32(const Core::CPUThreadGuard& guard, float var, u32 address);
   static void HostWrite_F64(const Core::CPUThreadGuard& guard, double var, u32 address);
+
+  template <class T>
+  static void TWriteBytes(const Core::CPUThreadGuard& guard, char* buff, u32 address);
+  static void HostWrite_Bytes(const Core::CPUThreadGuard& guard, u32 address, char* buff, size_t size);
 
   // Try to a write a value to memory at the given address in the given memory space.
   // If the write succeeds, the returned TryWriteResult contains information on whether the given

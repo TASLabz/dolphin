@@ -5,6 +5,9 @@
     <ClCompile Include="Python\PyScriptingBackend.cpp">
       <Filter>Python</Filter>
     </ClCompile>
+    <ClCompile Include="Python\Modules\debugmodule.cpp">
+      <Filter>Python\Modules</Filter>
+    </ClCompile>
     <ClCompile Include="Python\Modules\doliomodule.cpp">
       <Filter>Python\Modules</Filter>
     </ClCompile>
@@ -44,6 +47,12 @@
     <ClInclude Include="ScriptingEngine.h" />
     <ClInclude Include="Python\coroutine.h">
       <Filter>Python</Filter>
+    </ClInclude>
+    <ClInclude Include="Python\Modules\controllermodule.h">
+      <Filter>Python\Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="Python\Modules\debugmodule.h">
+      <Filter>Python\Modules</Filter>
     </ClInclude>
     <ClInclude Include="Python\Modules\doliomodule.h">
       <Filter>Python\Modules</Filter>

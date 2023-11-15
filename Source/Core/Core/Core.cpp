@@ -39,7 +39,6 @@
 #include "Common/Version.h"
 
 #include "Core/AchievementManager.h"
-#include "Core/API/Events.h"
 #include "Core/Boot/Boot.h"
 #include "Core/BootManager.h"
 #include "Core/CPUThreadConfigCallback.h"
@@ -185,7 +184,6 @@ void OnFrameEnd()
 
 void OnFrameBegin()
 {
-  API::GetEventHub().EmitEvent(API::Events::FrameAdvance{});
 }
 
 // Display messages and return values

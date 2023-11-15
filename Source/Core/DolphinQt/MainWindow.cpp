@@ -128,6 +128,8 @@
 #include "InputCommon/ControllerInterface/ControllerInterface.h"
 #include "InputCommon/GCAdapter.h"
 
+#include "Scripting/ScriptList.h"
+
 #include "UICommon/DiscordPresence.h"
 #include "UICommon/GameFile.h"
 #include "UICommon/ResourcePack/Manager.h"
@@ -315,7 +317,7 @@ MainWindow::MainWindow(std::unique_ptr<BootParameters> boot_parameters,
 
   if (script.has_value())
   {
-    m_scripting_widget->AddScript(script.value(), true);
+    Scripts::g_scripts[script.value()] = nullptr;
   }
 }
 
@@ -683,6 +685,7 @@ void MainWindow::ConnectToolBar()
   connect(m_tool_bar, &ToolBar::SettingsPressed, this, &MainWindow::ShowSettingsWindow);
   connect(m_tool_bar, &ToolBar::ControllersPressed, this, &MainWindow::ShowControllersWindow);
   connect(m_tool_bar, &ToolBar::GraphicsPressed, this, &MainWindow::ShowGraphicsWindow);
+  connect(m_tool_bar, &ToolBar::ScriptingPressed, this, &MainWindow::ShowScriptingWidget);
 
   connect(m_tool_bar, &ToolBar::StepPressed, m_code_widget, &CodeWidget::Step);
   connect(m_tool_bar, &ToolBar::StepOverPressed, m_code_widget, &CodeWidget::StepOver);
@@ -1240,6 +1243,12 @@ void MainWindow::ShowControllersWindow()
   m_controllers_window->show();
   m_controllers_window->raise();
   m_controllers_window->activateWindow();
+}
+
+void MainWindow::ShowScriptingWidget()
+{
+  Settings& settings = Settings::Instance();
+  settings.SetScriptingVisible(!settings.IsScriptingVisible());
 }
 
 void MainWindow::ShowFreeLookWindow()

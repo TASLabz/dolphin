@@ -68,6 +68,7 @@
 #define LOAD_DIR "Load"
 #define HIRES_TEXTURES_DIR "Textures"
 #define RIIVOLUTION_DIR "Riivolution"
+#define FONTS_DIR "Fonts"
 #define SCRIPTS_DIR "Scripts"
 #define MODULES_DIR "Modules"
 #define DUMP_DIR "Dump"

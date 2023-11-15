@@ -5,34 +5,38 @@
 #pragma once
 
 #include <QDockWidget>
+#include <QFileSystemModel>
+#include <QGroupBox>
 #include <QPushButton>
 #include <QTableView>
+#include <QTreeView>
 
 #include "DolphinQt/Scripting/ScriptsListModel.h"
 
 class ScriptingWidget : public QDockWidget
 {
-  Q_OBJECT
 public:
   ScriptingWidget(QWidget* parent = nullptr);
   void UpdateIcons();
-  void PopulateScripts();
   void AddNewScript();
   void RestartSelectedScripts();
-  void RemoveSelectedScripts();
   void ToggleSelectedScripts();
-  void AddScript(std::string filename, bool enabled = false);
 
 protected:
   void closeEvent(QCloseEvent*) override;
 
 private:
-  bool eventFilter(QObject* object, QEvent* event);
+  void OnEmulationStateChanged(Core::State state);
+  void OnDataChanged(const QModelIndex& topLeft, const QModelIndex& bottomRight,
+                     const QList<int>& roles);
+  
+  void OpenScriptsFolder();
 
   QPushButton* m_button_add_new;
   QPushButton* m_button_reload_selected;
-  QPushButton* m_button_remove_selected;
+  QPushButton* m_button_open_folder;
+  QGroupBox* m_scripts_group;
 
-  ScriptsListModel* m_scripts_model;
-  QTableView* m_table_view;
+  ScriptsFileSystemModel* m_scripts_model;
+  QTreeView* m_tree;
 };

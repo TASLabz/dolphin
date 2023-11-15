@@ -36,6 +36,7 @@ Invalid:
   from dolphin.event import ...
 """
 
+import dolphin_debug as debug
 import dolphin_event as event
 import dolphin_memory as memory
 import dolphin_gui as gui
@@ -46,7 +47,7 @@ import dolphin_utils as utils
 
 # defining __all__ let's people import everything
 # using a star-import: from dolphin import *
-__all__ = [event, memory, gui, savestate, controller, registers, utils]
+__all__ = [debug, event, memory, gui, savestate, controller, registers, utils]
 )";
   Py::Object result = Py::LoadPyCodeIntoModule(module, pycode);
   if (result.IsNull())

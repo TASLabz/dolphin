@@ -40,6 +40,29 @@ static PyObject* Read(PyObject* self, PyObject* args)
   return result;
 }
 
+template <auto TReadBytes>
+static PyObject* ReadBytes(PyObject* self, PyObject* args)
+{
+  // If Memory wasn't static, you'd get the memory instance from the state:
+  // MemoryModuleState* state = Py::GetState<MemoryModuleState>();
+  if (!Core::System::GetInstance().GetMemory().IsInitialized())
+  {
+    PyErr_SetString(PyExc_ValueError, "memory is not initialized");
+    return nullptr;
+  }
+  auto args_opt = Py::ParseTuple<u32, u32>(args);
+  if (!args_opt.has_value())
+    return nullptr;
+  u32 addr = std::get<0>(args_opt.value());
+  u32 size = std::get<1>(args_opt.value());
+  Core::CPUThreadGuard guard(Core::System::GetInstance());
+  char* ptr = TReadBytes(guard, addr, size);
+  
+  PyObject* result = PyByteArray_FromStringAndSize(ptr, size);
+  delete ptr;
+  return result;
+}
+
 template <auto TWrite, typename T>
 static PyObject* Write(PyObject* self, PyObject* args)
 {
@@ -57,6 +80,27 @@ static PyObject* Write(PyObject* self, PyObject* args)
   T value = std::get<1>(args_opt.value());
   Core::CPUThreadGuard guard(Core::System::GetInstance());
   TWrite(guard, addr, value);
+  Py_RETURN_NONE;
+}
+
+template <auto TWriteBytes>
+static PyObject* WriteBytes(PyObject* self, PyObject* args)
+{
+  // If Memory wasn't static, you'd get the memory instance from the state:
+  // MemoryModuleState* state = Py::GetState<MemoryModuleState>();
+  if (!Core::System::GetInstance().GetMemory().IsInitialized())
+  {
+    PyErr_SetString(PyExc_ValueError, "memory is not initialized");
+    return nullptr;
+  }
+
+  u32 addr = PyLong_AsUnsignedLong(PyTuple_GetItem(args, 0));
+  PyObject* byte_obj = PyTuple_GetItem(args, 1);
+  char* buff = PyByteArray_AsString(byte_obj);
+  size_t num_bytes = PyByteArray_Size(byte_obj);
+
+  Core::CPUThreadGuard guard(Core::System::GetInstance());
+  TWriteBytes(guard, addr, buff, num_bytes);
   Py_RETURN_NONE;
 }
 
@@ -109,6 +153,8 @@ PyMODINIT_FUNC PyInit_memory()
 
       {"read_f32", Read<API::Memory::Read_F32>, METH_VARARGS, ""},
       {"read_f64", Read<API::Memory::Read_F64>, METH_VARARGS, ""},
+      
+      {"read_bytes", ReadBytes<API::Memory::Read_Bytes>, METH_VARARGS, ""},
 
       {"invalidate_icache", Write<API::Memory::InvalidateICache, u32>, METH_VARARGS, ""},
       {"write_u8", Write<API::Memory::Write_U8, u8>, METH_VARARGS, ""},
@@ -123,6 +169,8 @@ PyMODINIT_FUNC PyInit_memory()
 
       {"write_f32", Write<API::Memory::Write_F32, float>, METH_VARARGS, ""},
       {"write_f64", Write<API::Memory::Write_F64, double>, METH_VARARGS, ""},
+
+      {"write_bytes", WriteBytes<API::Memory::Write_Bytes>, METH_VARARGS, ""},
 
       {nullptr, nullptr, 0, nullptr}  // Sentinel
   };

@@ -8,10 +8,11 @@ namespace Scripts
 {
 void StartPendingScripts()
 {
-  for (int i = 0; i < g_scripts.size(); i++)
+  // NOTE: This may enable scripts in an arbitrary order
+  for (auto it = g_scripts.begin(); it != g_scripts.end(); it++)
   {
-    if (g_scripts[i].enabled && !g_scripts[i].backend)
-      g_scripts[i].backend = new Scripting::ScriptingBackend(g_scripts[i].path);
+    if (!it->second)
+      it->second = new Scripting::ScriptingBackend(it->first);
   }
   g_scripts_started = true;
 }
@@ -20,17 +21,17 @@ void StartPendingScripts()
 // maintain enabled flag, but delete backends
 void StopAllScripts()
 {
-  for (int i = 0; i < g_scripts.size(); i++)
+  for (auto it = g_scripts.begin(); it != g_scripts.end(); it++)
   {
-    if (g_scripts[i].backend)
+    if (it->second)
     {
-      delete g_scripts[i].backend;
-      g_scripts[i].backend = nullptr;
+      delete it->second;
+      it->second = nullptr;
     }
   }
   g_scripts_started = false;
 }
 
-std::vector<Script> g_scripts = {};
+std::unordered_map<std::string, Scripting::ScriptingBackend*> g_scripts = {};
 bool g_scripts_started = false;
 }  // namespace Scripts
