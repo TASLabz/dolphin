@@ -244,9 +244,7 @@ MainWindow::MainWindow(std::unique_ptr<BootParameters> boot_parameters,
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
   connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this,
-          [](Qt::ColorScheme colorScheme) {
-            Settings::Instance().SetCurrentUserStyle(Settings::Instance().GetCurrentUserStyle());
-          });
+          [](Qt::ColorScheme colorScheme) { Settings::Instance().ApplyStyle(); });
 #endif
 
   connect(m_cheats_manager, &CheatsManager::OpenGeneralSettings, this,
@@ -283,6 +281,9 @@ MainWindow::MainWindow(std::unique_ptr<BootParameters> boot_parameters,
       }
     }
   }
+
+  m_state_slot =
+      std::clamp(Settings::Instance().GetStateSlot(), 1, static_cast<int>(State::NUM_STATES));
 
   QSettings& settings = Settings::GetQSettings();
 
@@ -1755,7 +1756,7 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, qintptr
     settings.UpdateSystemDark();
     if (settings.IsSystemDark() != was_dark_before)
     {
-      settings.SetCurrentUserStyle(settings.GetCurrentUserStyle());
+      settings.ApplyStyle();
 
       // force the colors in the Skylander window to update
       if (m_skylander_window)

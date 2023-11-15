@@ -167,7 +167,7 @@ NetKDRequestDevice::NetKDRequestDevice(EmulationKernel& ios, const std::string& 
     }
   });
 
-  m_handle_mail = !ios.GetIOSC().IsUsingDefaultId();
+  m_handle_mail = !ios.GetIOSC().IsUsingDefaultId() && !m_send_list.IsDisabled();
   m_scheduler_work_queue.Reset("WiiConnect24 Scheduler Worker",
                                [](std::function<void()> task) { task(); });
 
@@ -220,7 +220,7 @@ void NetKDRequestDevice::SchedulerTimer()
         mail_time_state = 0;
       }
 
-      if (m_download_span <= download_time_state)
+      if (m_download_span <= download_time_state && !m_dl_list.IsDisabled())
       {
         INFO_LOG_FMT(IOS_WC24, "NET_KD_REQ: Dispatching Download Task from Scheduler");
         m_scheduler_work_queue.EmplaceItem([this] { SchedulerWorker(SchedulerEvent::Download); });
@@ -522,6 +522,14 @@ NWC24::ErrorCode NetKDRequestDevice::KDDownload(const u16 entry_index,
   const std::string content_name = m_dl_list.GetVFFContentName(entry_index, subtask_id);
   std::string url = m_dl_list.GetDownloadURL(entry_index, subtask_id);
 
+  if (content_name.empty())
+  {
+    // If a content has an empty name it is meant to be saved to the mailbox. We do not support
+    // saving mail to the mailbox yet and as a result must skip these entries.
+    success = true;
+    return NWC24::WC24_OK;
+  }
+
   // Reroute to custom server if enabled.
   const std::vector<std::string> parts = SplitString(url, '/');
   if (parts.size() < 3)
@@ -588,11 +596,17 @@ NWC24::ErrorCode NetKDRequestDevice::KDDownload(const u16 entry_index,
 
     if (m_dl_list.IsEncrypted(entry_index))
     {
-      NWC24::WC24PubkMod pubk_mod = m_dl_list.GetWC24PubkMod(entry_index);
+      std::optional<NWC24::WC24PubkMod> pubk_mod = m_dl_list.GetWC24PubkMod(entry_index);
+      if (!pubk_mod)
+      {
+        ERROR_LOG_FMT(IOS_WC24, "Failed to get wc24pubk.mod for the current task.");
+        LogError(ErrorType::KD_Download, NWC24::WC24_ERR_FILE_OPEN);
+        return NWC24::WC24_ERR_FILE_OPEN;
+      }
 
       file_data = std::vector<u8>(response->size() - 320);
 
-      Common::AES::CryptOFB(pubk_mod.aes_key, wc24_file.iv, wc24_file.iv, temp_buffer.data(),
+      Common::AES::CryptOFB(pubk_mod->aes_key, wc24_file.iv, wc24_file.iv, temp_buffer.data(),
                             file_data.data(), temp_buffer.size());
     }
     else
@@ -616,6 +630,13 @@ NWC24::ErrorCode NetKDRequestDevice::KDDownload(const u16 entry_index,
 
 IPCReply NetKDRequestDevice::HandleNWC24CheckMailNow(const IOCtlRequest& request)
 {
+  if (!m_handle_mail)
+  {
+    LogError(ErrorType::CheckMail, NWC24::WC24_ERR_BROKEN);
+    WriteReturnValue(NWC24::WC24_ERR_BROKEN, request.buffer_out);
+    return IPCReply(IPC_SUCCESS);
+  }
+
   auto& system = GetSystem();
   auto& memory = system.GetMemory();
 
@@ -631,7 +652,14 @@ IPCReply NetKDRequestDevice::HandleNWC24CheckMailNow(const IOCtlRequest& request
 
 IPCReply NetKDRequestDevice::HandleNWC24DownloadNowEx(const IOCtlRequest& request)
 {
-  m_dl_list.ReadDlList();
+  if (m_dl_list.IsDisabled() || !m_dl_list.ReadDlList())
+  {
+    // Signal that the DL List is broken.
+    LogError(ErrorType::KD_Download, NWC24::WC24_ERR_BROKEN);
+    WriteReturnValue(NWC24::WC24_ERR_BROKEN, request.buffer_out);
+    return IPCReply(IPC_SUCCESS);
+  }
+
   auto& system = GetSystem();
   auto& memory = system.GetMemory();
   const u32 flags = memory.Read_U32(request.buffer_in);
