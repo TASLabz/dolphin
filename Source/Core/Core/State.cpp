@@ -3,6 +3,7 @@
 
 #include "Core/State.h"
 
+#include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <filesystem>
@@ -93,7 +94,7 @@ static size_t s_state_writes_in_queue;
 static std::condition_variable s_state_write_queue_is_empty;
 
 // Don't forget to increase this after doing changes on the savestate system
-constexpr u32 STATE_VERSION = 163;  // Last changed in PR 12217
+constexpr u32 STATE_VERSION = 164;  // Last changed in PR 12282
 
 // Increase this if the StateExtendedHeader definition changes
 constexpr u32 EXTENDED_HEADER_VERSION = 1;  // Last changed in PR 12217
@@ -231,21 +232,23 @@ void SaveToBuffer(std::vector<u8>& buffer)
       true);
 }
 
-// return state number not in map
-static int GetEmptySlot(std::map<double, int> m)
+namespace
+{
+struct SlotWithTimestamp
+{
+  int slot;
+  double timestamp;
+};
+}  // namespace
+
+// returns first slot number not in the vector, or -1 if all are in the vector
+static int GetEmptySlot(const std::vector<SlotWithTimestamp>& used_slots)
 {
   for (int i = 1; i <= (int)NUM_STATES; i++)
   {
-    bool found = false;
-    for (auto& p : m)
-    {
-      if (p.second == i)
-      {
-        found = true;
-        break;
-      }
-    }
-    if (!found)
+    const auto it = std::find_if(used_slots.begin(), used_slots.end(),
+                                 [i](const SlotWithTimestamp& slot) { return slot.slot == i; });
+    if (it == used_slots.end())
       return i;
   }
   return -1;
@@ -266,27 +269,29 @@ static double GetSystemTimeAsDouble()
 static std::string SystemTimeAsDoubleToString(double time)
 {
   // revert adjustments from GetSystemTimeAsDouble() to get a normal Unix timestamp again
-  time_t seconds = (time_t)time + DOUBLE_TIME_OFFSET;
-  tm* localTime = localtime(&seconds);
+  time_t seconds = static_cast<time_t>(time) + DOUBLE_TIME_OFFSET;
+  errno = 0;
+  tm* local_time = localtime(&seconds);
+  if (errno != 0 || !local_time)
+    return "";
 
 #ifdef _WIN32
   wchar_t tmp[32] = {};
-  wcsftime(tmp, std::size(tmp), L"%x %X", localTime);
+  wcsftime(tmp, std::size(tmp), L"%x %X", local_time);
   return WStringToUTF8(tmp);
 #else
   char tmp[32] = {};
-  strftime(tmp, sizeof(tmp), "%x %X", localTime);
+  strftime(tmp, sizeof(tmp), "%x %X", local_time);
   return tmp;
 #endif
 }
 
 static std::string MakeStateFilename(int number);
 
-// read state timestamps
-static std::map<double, int> GetSavedStates()
+static std::vector<SlotWithTimestamp> GetUsedSlotsWithTimestamp()
 {
+  std::vector<SlotWithTimestamp> result;
   StateHeader header;
-  std::map<double, int> m;
   for (int i = 1; i <= (int)NUM_STATES; i++)
   {
     std::string filename = MakeStateFilename(i);
@@ -294,17 +299,82 @@ static std::map<double, int> GetSavedStates()
     {
       if (ReadHeader(filename, header))
       {
-        double d = GetSystemTimeAsDouble() - header.legacy_header.time;
-
-        // increase time until unique value is obtained
-        while (m.find(d) != m.end())
-          d += .001;
-
-        m.emplace(d, i);
+        result.emplace_back(SlotWithTimestamp{.slot = i, .timestamp = header.legacy_header.time});
       }
     }
   }
-  return m;
+  return result;
+}
+
+static bool CompareTimestamp(const SlotWithTimestamp& lhs, const SlotWithTimestamp& rhs)
+{
+  return lhs.timestamp < rhs.timestamp;
+}
+
+static void CompressBufferToFile(const u8* raw_buffer, u64 size, File::IOFile& f)
+{
+  u64 total_bytes_compressed = 0;
+
+  while (true)
+  {
+    u64 bytes_left_to_compress = size - total_bytes_compressed;
+
+    int bytes_to_compress =
+        static_cast<int>(std::min(static_cast<u64>(LZ4_MAX_INPUT_SIZE), bytes_left_to_compress));
+    int compressed_buffer_size = LZ4_compressBound(bytes_to_compress);
+    auto compressed_buffer = std::make_unique<char[]>(compressed_buffer_size);
+    s32 compressed_len =
+        LZ4_compress_default(reinterpret_cast<const char*>(raw_buffer) + total_bytes_compressed,
+                             compressed_buffer.get(), bytes_to_compress, compressed_buffer_size);
+
+    if (compressed_len == 0)
+    {
+      PanicAlertFmtT("Internal LZ4 Error - compression failed");
+      break;
+    }
+
+    // The size of the data to write is 'compressed_len'
+    f.WriteArray(&compressed_len, 1);
+    f.WriteBytes(compressed_buffer.get(), compressed_len);
+
+    total_bytes_compressed += bytes_to_compress;
+    if (total_bytes_compressed == size)
+      break;
+  }
+}
+
+static void CreateExtendedHeader(StateExtendedHeader& extended_header, size_t uncompressed_size)
+{
+  StateExtendedBaseHeader& base_header = extended_header.base_header;
+  base_header.header_version = EXTENDED_HEADER_VERSION;
+  base_header.compression_type =
+      s_use_compression ? CompressionType::LZ4 : CompressionType::Uncompressed;
+  base_header.payload_offset = COMPRESSED_DATA_OFFSET;
+  base_header.uncompressed_size = uncompressed_size;
+
+  // If more fields are added to StateExtendedHeader, set them here.
+}
+
+static void WriteHeadersToFile(size_t uncompressed_size, File::IOFile& f)
+{
+  StateHeader header{};
+  SConfig::GetInstance().GetGameID().copy(header.legacy_header.game_id,
+                                          std::size(header.legacy_header.game_id));
+  header.legacy_header.time = GetSystemTimeAsDouble();
+
+  header.version_header.version_cookie = COOKIE_BASE + STATE_VERSION;
+  header.version_string = Common::GetScmRevStr();
+  header.version_header.version_string_length = static_cast<u32>(header.version_string.length());
+
+  StateExtendedHeader extended_header{};
+  CreateExtendedHeader(extended_header, uncompressed_size);
+
+  f.WriteArray(&header.legacy_header, 1);
+  f.WriteArray(&header.version_header, 1);
+  f.WriteString(header.version_string);
+
+  f.WriteArray(&extended_header.base_header, 1);
+  // If StateExtendedHeader is amended to include more than the base, add WriteBytes() calls here.
 }
 
 static void CompressBufferToFile(const u8* raw_buffer, u64 size, File::IOFile& f)
@@ -973,33 +1043,37 @@ void Load(int slot)
 
 void LoadLastSaved(int i)
 {
-  std::map<double, int> savedStates = GetSavedStates();
-
-  if (i > (int)savedStates.size())
-    Core::DisplayMessage("State doesn't exist", 2000);
-  else
+  if (i <= 0)
   {
-    std::map<double, int>::iterator it = savedStates.begin();
-    std::advance(it, i - 1);
-    Load(it->second);
+    Core::DisplayMessage("State doesn't exist", 2000);
+    return;
   }
+
+  std::vector<SlotWithTimestamp> used_slots = GetUsedSlotsWithTimestamp();
+  if (static_cast<size_t>(i) > used_slots.size())
+  {
+    Core::DisplayMessage("State doesn't exist", 2000);
+    return;
+  }
+
+  std::stable_sort(used_slots.begin(), used_slots.end(), CompareTimestamp);
+  Load((used_slots.end() - i)->slot);
 }
 
 // must wait for state to be written because it must know if all slots are taken
 void SaveFirstSaved()
 {
-  std::map<double, int> savedStates = GetSavedStates();
-
-  // save to an empty slot
-  if (savedStates.size() < NUM_STATES)
-    Save(GetEmptySlot(savedStates), true);
-  // overwrite the oldest state
-  else
+  std::vector<SlotWithTimestamp> used_slots = GetUsedSlotsWithTimestamp();
+  if (used_slots.size() < NUM_STATES)
   {
-    std::map<double, int>::iterator it = savedStates.begin();
-    std::advance(it, savedStates.size() - 1);
-    Save(it->second, true);
+    // save to an empty slot
+    Save(GetEmptySlot(used_slots), true);
+    return;
   }
+
+  // overwrite the oldest state
+  std::stable_sort(used_slots.begin(), used_slots.end(), CompareTimestamp);
+  Save(used_slots.front().slot, true);
 }
 
 // Load the last state before loading the state

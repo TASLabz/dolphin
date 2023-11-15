@@ -98,7 +98,6 @@ struct EFBCopyParams
 template <>
 struct fmt::formatter<EFBCopyParams>
 {
-  std::shared_ptr<int> state;
   constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
   template <typename FormatContext>
   auto format(const EFBCopyParams& uid, FormatContext& ctx) const
@@ -347,11 +346,10 @@ private:
 
   void SetBackupConfig(const VideoConfig& config);
 
-  RcTcacheEntry
-  CreateTextureEntry(const TextureCreationInfo& creation_info, const TextureInfo& texture_info,
-                     int safety_color_sample_size,
-                     std::vector<std::shared_ptr<VideoCommon::CustomTextureData>> assets_data,
-                     bool custom_arbitrary_mipmaps, bool skip_texture_dump);
+  RcTcacheEntry CreateTextureEntry(const TextureCreationInfo& creation_info,
+                                   const TextureInfo& texture_info, int safety_color_sample_size,
+                                   std::vector<VideoCommon::CustomTextureData*> assets_data,
+                                   bool custom_arbitrary_mipmaps, bool skip_texture_dump);
 
   RcTcacheEntry GetXFBFromCache(u32 address, u32 width, u32 height, u32 stride);
 

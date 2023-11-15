@@ -1024,6 +1024,9 @@ bool MMU::IsOptimizableRAMAddress(const u32 address) const
   if (!m_ppc_state.msr.DR)
     return false;
 
+  if (m_ppc_state.m_enable_dcache)
+    return false;
+
   // TODO: This API needs to take an access size
   //
   // We store whether an access can be optimized to an unchecked access
@@ -1321,6 +1324,9 @@ u32 MMU::IsOptimizableMMIOAccess(u32 address, u32 access_size) const
   if (!m_ppc_state.msr.DR)
     return 0;
 
+  if (m_ppc_state.m_enable_dcache)
+    return 0;
+
   // Translate address
   // If we also optimize for TLB mappings, we'd have to clear the
   // JitCache on each TLB invalidation.
@@ -1387,7 +1393,7 @@ void MMU::GenerateDSIException(u32 effective_address, bool write)
   constexpr u32 dsisr_page = 1U << 30;
   constexpr u32 dsisr_store = 1U << 25;
 
-  if (effective_address != 0)
+  if (write)
     m_ppc_state.spr[SPR_DSISR] = dsisr_page | dsisr_store;
   else
     m_ppc_state.spr[SPR_DSISR] = dsisr_page;
@@ -1434,13 +1440,13 @@ enum class TLBLookupResult
 };
 
 static TLBLookupResult LookupTLBPageAddress(PowerPC::PowerPCState& ppc_state,
-                                            const XCheckTLBFlag flag, const u32 vpa, u32* paddr,
-                                            bool* wi)
+                                            const XCheckTLBFlag flag, const u32 vpa, const u32 vsid,
+                                            u32* paddr, bool* wi)
 {
   const u32 tag = vpa >> HW_PAGE_INDEX_SHIFT;
   TLBEntry& tlbe = ppc_state.tlb[IsOpcodeFlag(flag)][tag & HW_PAGE_INDEX_MASK];
 
-  if (tlbe.tag[0] == tag)
+  if (tlbe.tag[0] == tag && tlbe.vsid[0] == vsid)
   {
     UPTE_Hi pte2(tlbe.pte[0]);
 
@@ -1463,7 +1469,7 @@ static TLBLookupResult LookupTLBPageAddress(PowerPC::PowerPCState& ppc_state,
 
     return TLBLookupResult::Found;
   }
-  if (tlbe.tag[1] == tag)
+  if (tlbe.tag[1] == tag && tlbe.vsid[1] == vsid)
   {
     UPTE_Hi pte2(tlbe.pte[1]);
 
@@ -1490,7 +1496,7 @@ static TLBLookupResult LookupTLBPageAddress(PowerPC::PowerPCState& ppc_state,
 }
 
 static void UpdateTLBEntry(PowerPC::PowerPCState& ppc_state, const XCheckTLBFlag flag, UPTE_Hi pte2,
-                           const u32 address)
+                           const u32 address, const u32 vsid)
 {
   if (IsNoExceptionFlag(flag))
     return;
@@ -1502,6 +1508,7 @@ static void UpdateTLBEntry(PowerPC::PowerPCState& ppc_state, const XCheckTLBFlag
   tlbe.paddr[index] = pte2.RPN << HW_PAGE_INDEX_SHIFT;
   tlbe.pte[index] = pte2.Hex;
   tlbe.tag[index] = tag;
+  tlbe.vsid[index] = vsid;
 }
 
 void MMU::InvalidateTLBEntry(u32 address)
@@ -1516,19 +1523,20 @@ void MMU::InvalidateTLBEntry(u32 address)
 template <const XCheckTLBFlag flag>
 MMU::TranslateAddressResult MMU::TranslatePageAddress(const EffectiveAddress address, bool* wi)
 {
+  const auto sr = UReg_SR{m_ppc_state.sr[address.SR]};
+  const u32 VSID = sr.VSID;  // 24 bit
+
   // TLB cache
   // This catches 99%+ of lookups in practice, so the actual page table entry code below doesn't
   // benefit much from optimization.
   u32 translated_address = 0;
   const TLBLookupResult res =
-      LookupTLBPageAddress(m_ppc_state, flag, address.Hex, &translated_address, wi);
+      LookupTLBPageAddress(m_ppc_state, flag, address.Hex, VSID, &translated_address, wi);
   if (res == TLBLookupResult::Found)
   {
     return TranslateAddressResult{TranslateAddressResultEnum::PAGE_TABLE_TRANSLATED,
                                   translated_address};
   }
-
-  const auto sr = UReg_SR{m_ppc_state.sr[address.SR]};
 
   if (sr.T != 0)
     return TranslateAddressResult{TranslateAddressResultEnum::DIRECT_STORE_SEGMENT, 0};
@@ -1543,7 +1551,6 @@ MMU::TranslateAddressResult MMU::TranslatePageAddress(const EffectiveAddress add
 
   const u32 offset = address.offset;          // 12 bit
   const u32 page_index = address.page_index;  // 16 bit
-  const u32 VSID = sr.VSID;                   // 24 bit
   const u32 api = address.API;                //  6 bit (part of page_index)
 
   // hash function no 1 "xor" .360
@@ -1598,7 +1605,7 @@ MMU::TranslateAddressResult MMU::TranslatePageAddress(const EffectiveAddress add
 
         // We already updated the TLB entry if this was caused by a C bit.
         if (res != TLBLookupResult::UpdateC)
-          UpdateTLBEntry(m_ppc_state, flag, pte2, address.Hex);
+          UpdateTLBEntry(m_ppc_state, flag, pte2, address.Hex, VSID);
 
         *wi = (pte2.WIMG & 0b1100) != 0;
 
@@ -1668,7 +1675,8 @@ void MMU::UpdateBATs(BatTable& bat_table, u32 base_spr)
           valid_bit |= BAT_WI_BIT;
 
         // Enable fastmem mappings for cached memory. There are quirks related to uncached memory
-        // that fastmem doesn't emulate properly (though no normal games are known to rely on them).
+        // that can't be correctly emulated by fast accesses, so we don't map uncached memory.
+        // (No normal games are known to rely on the quirks, though.)
         if (!wi)
         {
           if (m_memory.GetFakeVMEM() && (physical_address & 0xFE000000) == 0x7E000000)
@@ -1691,7 +1699,8 @@ void MMU::UpdateBATs(BatTable& bat_table, u32 base_spr)
           }
         }
 
-        // Fastmem doesn't support memchecks, so disable it for all overlapping virtual pages.
+        // Fast accesses don't support memchecks, so force slow accesses by removing fastmem
+        // mappings for all overlapping virtual pages.
         if (m_power_pc.GetMemChecks().OverlapsMemcheck(virtual_address, BAT_PAGE_SIZE))
           valid_bit &= ~BAT_PHYSICAL_BIT;
 

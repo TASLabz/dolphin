@@ -1941,6 +1941,14 @@ class SettingsFragmentPresenter(
                 0
             )
         )
+        sl.add(
+            InvertedSwitchSetting(
+                context,
+                BooleanSetting.MAIN_FASTMEM_ARENA,
+                R.string.debug_fastmem_arena,
+                0
+            )
+        )
 
         sl.add(HeaderSetting(context, R.string.debug_jit_header, 0))
         sl.add(
@@ -2356,8 +2364,8 @@ class SettingsFragmentPresenter(
                     ceil(setting.getDoubleMin()).toFloat(),
                     floor(setting.getDoubleMax()).toFloat(),
                     setting.getUiSuffix(),
-                    1.0f,
-                    false
+                    0.5f,
+                    true
                 )
             )
 
