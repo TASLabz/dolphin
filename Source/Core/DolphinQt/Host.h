@@ -21,10 +21,11 @@ public:
 
   static Host* GetInstance();
 
-  bool GetRenderFocus();
-  bool GetRenderFullFocus();
-  bool GetRenderFullscreen();
-  bool GetGBAFocus();
+  bool GetRenderFocus() const;
+  bool GetRenderFullFocus() const;
+  bool GetRenderFullscreen() const;
+  bool GetTASInputFullFocus() const;
+  bool GetGBAFocus() const;
 
   void SetMainWindowHandle(void* handle);
   void SetRenderHandle(void* handle);
