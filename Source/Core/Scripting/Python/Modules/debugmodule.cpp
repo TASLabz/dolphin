@@ -6,6 +6,7 @@
 
 #include <Python.h>
 
+#include "Common/Logging/Log.h"
 #include "Core/Core.h"
 #include "Core/PowerPC/BreakPoints.h"
 #include "Core/PowerPC/PowerPC.h"
@@ -70,6 +71,11 @@ static PyObject* SetMemoryBreakpoint(PyObject* self, PyObject* args)
     check.start_address = PyLong_AsUnsignedLong(start_obj);
     check.end_address = PyLong_AsUnsignedLong(end_obj);
     check.is_ranged = true;
+  }
+  else
+  {
+    ERROR_LOG_FMT(SCRIPTING, "No \"At\" or \"Start\" and \"End\" addresses provided for Memory Breakpoint.");
+    Py_RETURN_NONE;
   }
 
   PyObject* break_read_obj = PyDict_GetItemString(dict, "BreakOnRead");
