@@ -141,6 +141,8 @@ add_executable(dolphin-emu
   Config/GraphicsModListWidget.h
   Config/GraphicsModWarningWidget.cpp
   Config/GraphicsModWarningWidget.h
+  Config/HardcoreWarningWidget.cpp
+  Config/HardcoreWarningWidget.h
   Config/InfoWidget.cpp
   Config/InfoWidget.h
   Config/LogConfigWidget.cpp
@@ -237,6 +239,12 @@ add_executable(dolphin-emu
   Config/WiimoteControllersWidget.h
   ConvertDialog.cpp
   ConvertDialog.h
+  Debugger/AssembleInstructionDialog.cpp
+  Debugger/AssembleInstructionDialog.h
+  Debugger/AssemblerWidget.cpp
+  Debugger/AssemblerWidget.h
+  Debugger/AssemblyEditor.cpp
+  Debugger/AssemblyEditor.h
   Debugger/BreakpointDialog.cpp
   Debugger/BreakpointDialog.h
   Debugger/BreakpointWidget.cpp
@@ -247,6 +255,8 @@ add_executable(dolphin-emu
   Debugger/CodeViewWidget.h
   Debugger/CodeWidget.cpp
   Debugger/CodeWidget.h
+  Debugger/GekkoSyntaxHighlight.cpp
+  Debugger/GekkoSyntaxHighlight.h
   Debugger/JITWidget.cpp
   Debugger/JITWidget.h
   Debugger/MemoryViewWidget.cpp

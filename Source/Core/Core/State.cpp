@@ -31,6 +31,8 @@
 #include "Common/Version.h"
 #include "Common/WorkQueueThread.h"
 
+#include "Core/AchievementManager.h"
+#include "Core/Config/AchievementSettings.h"
 #include "Core/API/Events.h"
 #include "Core/ConfigManager.h"
 #include "Core/Core.h"
@@ -94,7 +96,7 @@ static size_t s_state_writes_in_queue;
 static std::condition_variable s_state_write_queue_is_empty;
 
 // Don't forget to increase this after doing changes on the savestate system
-constexpr u32 STATE_VERSION = 164;  // Last changed in PR 12282
+constexpr u32 STATE_VERSION = 165;  // Last changed in PR 12328
 
 // Increase this if the StateExtendedHeader definition changes
 constexpr u32 EXTENDED_HEADER_VERSION = 1;  // Last changed in PR 12217
@@ -204,6 +206,14 @@ void LoadFromBuffer(std::vector<u8>& buffer)
     OSD::AddMessage("Loading savestates is disabled in Netplay to prevent desyncs");
     return;
   }
+
+#ifdef USE_RETRO_ACHIEVEMENTS
+  if (AchievementManager::GetInstance().IsHardcoreModeActive())
+  {
+    OSD::AddMessage("Loading savestates is disabled in RetroAchievements hardcore mode");
+    return;
+  }
+#endif  // USE_RETRO_ACHIEVEMENTS
 
   Core::RunOnCPUThread(
       [&] {
@@ -924,6 +934,14 @@ void LoadAs(const std::string& filename)
     OSD::AddMessage("Loading savestates is disabled in Netplay to prevent desyncs");
     return;
   }
+
+#ifdef USE_RETRO_ACHIEVEMENTS
+  if (AchievementManager::GetInstance().IsHardcoreModeActive())
+  {
+    OSD::AddMessage("Loading savestates is disabled in RetroAchievements hardcore mode");
+    return;
+  }
+#endif  // USE_RETRO_ACHIEVEMENTS
 
   std::unique_lock lk(s_load_or_save_in_progress_mutex, std::try_to_lock);
   if (!lk)

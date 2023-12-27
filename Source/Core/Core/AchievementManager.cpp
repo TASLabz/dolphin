@@ -20,7 +20,7 @@
 #include "Core/Core.h"
 #include "Core/PowerPC/MMU.h"
 #include "Core/System.h"
-#include "DiscIO/Volume.h"
+#include "DiscIO/Blob.h"
 #include "VideoCommon/OnScreenDisplay.h"
 #include "VideoCommon/VideoEvents.h"
 
@@ -28,10 +28,10 @@ static constexpr bool hardcore_mode_enabled = false;
 
 static std::unique_ptr<OSD::Icon> DecodeBadgeToOSDIcon(const AchievementManager::Badge& badge);
 
-AchievementManager* AchievementManager::GetInstance()
+AchievementManager& AchievementManager::GetInstance()
 {
   static AchievementManager s_instance;
-  return &s_instance;
+  return s_instance;
 }
 
 void AchievementManager::Init()
@@ -43,7 +43,8 @@ void AchievementManager::Init()
     m_queue.Reset("AchievementManagerQueue", [](const std::function<void()>& func) { func(); });
     m_image_queue.Reset("AchievementManagerImageQueue",
                         [](const std::function<void()>& func) { func(); });
-    LoginAsync("", [](ResponseType r_type) {});
+    if (IsLoggedIn())
+      LoginAsync("", [](ResponseType r_type) {});
     INFO_LOG_FMT(ACHIEVEMENTS, "Achievement Manager Initialized");
   }
 }
@@ -91,9 +92,13 @@ bool AchievementManager::IsLoggedIn() const
   return !Config::Get(Config::RA_API_TOKEN).empty();
 }
 
-void AchievementManager::LoadGameByFilenameAsync(const std::string& iso_path,
-                                                 const ResponseCallback& callback)
+void AchievementManager::HashGame(const std::string& file_path, const ResponseCallback& callback)
 {
+  if (!Config::Get(Config::RA_ENABLED) || !IsLoggedIn())
+  {
+    callback(AchievementManager::ResponseType::NOT_ENABLED);
+    return;
+  }
   if (!m_is_runtime_initialized)
   {
     ERROR_LOG_FMT(ACHIEVEMENTS,
@@ -101,115 +106,218 @@ void AchievementManager::LoadGameByFilenameAsync(const std::string& iso_path,
     callback(AchievementManager::ResponseType::MANAGER_NOT_INITIALIZED);
     return;
   }
-  m_system = &Core::System::GetInstance();
-  struct FilereaderState
+  if (m_disabled)
   {
-    int64_t position = 0;
-    std::unique_ptr<DiscIO::Volume> volume;
-  };
-  rc_hash_filereader volume_reader{
-      .open = [](const char* path_utf8) -> void* {
-        auto state = std::make_unique<FilereaderState>();
-        state->volume = DiscIO::CreateVolume(path_utf8);
-        if (!state->volume)
-          return nullptr;
-        return state.release();
-      },
-      .seek =
-          [](void* file_handle, int64_t offset, int origin) {
-            switch (origin)
-            {
-            case SEEK_SET:
-              reinterpret_cast<FilereaderState*>(file_handle)->position = offset;
-              break;
-            case SEEK_CUR:
-              reinterpret_cast<FilereaderState*>(file_handle)->position += offset;
-              break;
-            case SEEK_END:
-              // Unused
-              break;
-            }
-          },
-      .tell =
-          [](void* file_handle) {
-            return reinterpret_cast<FilereaderState*>(file_handle)->position;
-          },
-      .read =
-          [](void* file_handle, void* buffer, size_t requested_bytes) {
-            FilereaderState* filereader_state = reinterpret_cast<FilereaderState*>(file_handle);
-            bool success = (filereader_state->volume->Read(
-                filereader_state->position, requested_bytes, reinterpret_cast<u8*>(buffer),
-                DiscIO::PARTITION_NONE));
-            if (success)
-            {
-              filereader_state->position += requested_bytes;
-              return requested_bytes;
-            }
-            else
-            {
-              return static_cast<size_t>(0);
-            }
-          },
-      .close = [](void* file_handle) { delete reinterpret_cast<FilereaderState*>(file_handle); }};
-  rc_hash_init_custom_filereader(&volume_reader);
-  if (!rc_hash_generate_from_file(m_game_hash.data(), RC_CONSOLE_GAMECUBE, iso_path.c_str()))
-  {
-    ERROR_LOG_FMT(ACHIEVEMENTS, "Unable to generate achievement hash from game file.");
+    INFO_LOG_FMT(ACHIEVEMENTS, "Achievement Manager is disabled until core is rebooted.");
+    OSD::AddMessage("Achievements are disabled until you restart emulation.",
+                    OSD::Duration::VERY_LONG, OSD::Color::RED);
     return;
   }
-  m_queue.EmplaceItem([this, callback] {
-    const auto resolve_hash_response = ResolveHash(this->m_game_hash);
-    if (resolve_hash_response != ResponseType::SUCCESS || m_game_id == 0)
+  m_system = &Core::System::GetInstance();
+  m_queue.EmplaceItem([this, callback, file_path] {
+    Hash new_hash;
     {
-      callback(resolve_hash_response);
-      INFO_LOG_FMT(ACHIEVEMENTS, "No RetroAchievements data found for this game.");
-      OSD::AddMessage("No RetroAchievements data found for this game.", OSD::Duration::VERY_LONG,
-                      OSD::Color::RED);
-      return;
+      std::lock_guard lg{m_filereader_lock};
+      rc_hash_filereader volume_reader{
+          .open = &AchievementManager::FilereaderOpenByFilepath,
+          .seek = &AchievementManager::FilereaderSeek,
+          .tell = &AchievementManager::FilereaderTell,
+          .read = &AchievementManager::FilereaderRead,
+          .close = &AchievementManager::FilereaderClose,
+      };
+      rc_hash_init_custom_filereader(&volume_reader);
+      if (!rc_hash_generate_from_file(new_hash.data(), RC_CONSOLE_GAMECUBE, file_path.c_str()))
+      {
+        ERROR_LOG_FMT(ACHIEVEMENTS, "Unable to generate achievement hash from game file {}.",
+                      file_path);
+        callback(AchievementManager::ResponseType::MALFORMED_OBJECT);
+      }
     }
-
-    const auto start_session_response = StartRASession();
-    if (start_session_response != ResponseType::SUCCESS)
-    {
-      callback(start_session_response);
-      WARN_LOG_FMT(ACHIEVEMENTS, "Failed to connect to RetroAchievements server.");
-      OSD::AddMessage("Failed to connect to RetroAchievements server.", OSD::Duration::VERY_LONG,
-                      OSD::Color::RED);
-      return;
-    }
-
-    const auto fetch_game_data_response = FetchGameData();
-    if (fetch_game_data_response != ResponseType::SUCCESS)
-    {
-      ERROR_LOG_FMT(ACHIEVEMENTS, "Unable to retrieve data from RetroAchievements server.");
-      OSD::AddMessage("Unable to retrieve data from RetroAchievements server.",
-                      OSD::Duration::VERY_LONG, OSD::Color::RED);
-      return;
-    }
-    INFO_LOG_FMT(ACHIEVEMENTS, "Loading achievements for {}.", m_game_data.title);
-
-    // Claim the lock, then queue the fetch unlock data calls, then initialize the unlock map in
-    // ActivateDeactiveAchievements. This allows the calls to process while initializing the
-    // unlock map but then forces them to wait until it's initialized before making modifications to
-    // it.
     {
       std::lock_guard lg{m_lock};
-      m_is_game_loaded = true;
-      m_framecount = 0;
-      LoadUnlockData([](ResponseType r_type) {});
-      ActivateDeactivateAchievements();
-      ActivateDeactivateLeaderboards();
-      ActivateDeactivateRichPresence();
+      if (m_disabled)
+      {
+        INFO_LOG_FMT(ACHIEVEMENTS, "Achievements disabled while hash was resolving.");
+        callback(AchievementManager::ResponseType::EXPIRED_CONTEXT);
+        return;
+      }
+      m_game_hash = std::move(new_hash);
     }
-    FetchBadges();
-    // Reset this to zero so that RP immediately triggers on the first frame
-    m_last_ping_time = 0;
-    INFO_LOG_FMT(ACHIEVEMENTS, "RetroAchievements successfully loaded for {}.", m_game_data.title);
-
-    if (m_update_callback)
-      m_update_callback();
-    callback(fetch_game_data_response);
+    LoadGameSync(callback);
   });
+}
+
+void AchievementManager::HashGame(const DiscIO::Volume* volume, const ResponseCallback& callback)
+{
+  if (!Config::Get(Config::RA_ENABLED) || !IsLoggedIn())
+  {
+    callback(AchievementManager::ResponseType::NOT_ENABLED);
+    return;
+  }
+  if (!m_is_runtime_initialized)
+  {
+    ERROR_LOG_FMT(ACHIEVEMENTS,
+                  "Attempted to load game achievements without Achievement Manager initialized.");
+    callback(AchievementManager::ResponseType::MANAGER_NOT_INITIALIZED);
+    return;
+  }
+  if (volume == nullptr)
+  {
+    INFO_LOG_FMT(ACHIEVEMENTS, "New volume is empty.");
+    return;
+  }
+  if (m_disabled)
+  {
+    INFO_LOG_FMT(ACHIEVEMENTS, "Achievement Manager is disabled until core is rebooted.");
+    OSD::AddMessage("Achievements are disabled until core is rebooted.", OSD::Duration::VERY_LONG,
+                    OSD::Color::RED);
+    return;
+  }
+  // Need to SetDisabled outside a lock because it uses m_lock internally.
+  bool disable = false;
+  {
+    std::lock_guard lg{m_lock};
+    if (m_loading_volume.get() != nullptr)
+    {
+      disable = true;
+    }
+    else
+    {
+      m_loading_volume = DiscIO::CreateVolume(volume->GetBlobReader().CopyReader());
+    }
+  }
+  if (disable)
+  {
+    INFO_LOG_FMT(ACHIEVEMENTS, "Disabling Achievement Manager due to hash spam.");
+    SetDisabled(true);
+    callback(AchievementManager::ResponseType::EXPIRED_CONTEXT);
+    return;
+  }
+  m_system = &Core::System::GetInstance();
+  m_queue.EmplaceItem([this, callback] {
+    Hash new_hash;
+    {
+      std::lock_guard lg{m_filereader_lock};
+      rc_hash_filereader volume_reader{
+          .open = &AchievementManager::FilereaderOpenByVolume,
+          .seek = &AchievementManager::FilereaderSeek,
+          .tell = &AchievementManager::FilereaderTell,
+          .read = &AchievementManager::FilereaderRead,
+          .close = &AchievementManager::FilereaderClose,
+      };
+      rc_hash_init_custom_filereader(&volume_reader);
+      if (!rc_hash_generate_from_file(new_hash.data(), RC_CONSOLE_GAMECUBE, ""))
+      {
+        ERROR_LOG_FMT(ACHIEVEMENTS, "Unable to generate achievement hash from volume.");
+        callback(AchievementManager::ResponseType::MALFORMED_OBJECT);
+        return;
+      }
+    }
+    {
+      std::lock_guard lg{m_lock};
+      if (m_disabled)
+      {
+        INFO_LOG_FMT(ACHIEVEMENTS, "Achievements disabled while hash was resolving.");
+        callback(AchievementManager::ResponseType::EXPIRED_CONTEXT);
+        return;
+      }
+      m_game_hash = std::move(new_hash);
+      m_loading_volume.reset();
+    }
+    LoadGameSync(callback);
+  });
+}
+
+void AchievementManager::LoadGameSync(const ResponseCallback& callback)
+{
+  if (!Config::Get(Config::RA_ENABLED) || !IsLoggedIn())
+  {
+    callback(AchievementManager::ResponseType::NOT_ENABLED);
+    return;
+  }
+  u32 new_game_id = 0;
+  Hash current_hash;
+  {
+    std::lock_guard lg{m_lock};
+    current_hash = m_game_hash;
+  }
+  const auto resolve_hash_response = ResolveHash(current_hash, &new_game_id);
+  if (resolve_hash_response != ResponseType::SUCCESS || new_game_id == 0)
+  {
+    INFO_LOG_FMT(ACHIEVEMENTS, "No RetroAchievements data found for this game.");
+    OSD::AddMessage("No RetroAchievements data found for this game.", OSD::Duration::VERY_LONG,
+                    OSD::Color::RED);
+    SetDisabled(true);
+    callback(resolve_hash_response);
+    return;
+  }
+  u32 old_game_id;
+  {
+    std::lock_guard lg{m_lock};
+    old_game_id = m_game_id;
+  }
+  if (new_game_id == old_game_id)
+  {
+    INFO_LOG_FMT(ACHIEVEMENTS, "Alternate hash resolved for current game {}.", old_game_id);
+    callback(ResponseType::SUCCESS);
+    return;
+  }
+  else if (old_game_id != 0)
+  {
+    INFO_LOG_FMT(ACHIEVEMENTS, "Swapping game {} for game {}; achievements disabled.", old_game_id,
+                 new_game_id);
+    OSD::AddMessage("Achievements are now disabled. Please close emulation to re-enable.",
+                    OSD::Duration::VERY_LONG, OSD::Color::RED);
+    SetDisabled(true);
+    callback(ResponseType::EXPIRED_CONTEXT);
+    return;
+  }
+  {
+    std::lock_guard lg{m_lock};
+    m_game_id = new_game_id;
+  }
+
+  const auto start_session_response = StartRASession();
+  if (start_session_response != ResponseType::SUCCESS)
+  {
+    WARN_LOG_FMT(ACHIEVEMENTS, "Failed to connect to RetroAchievements server.");
+    OSD::AddMessage("Failed to connect to RetroAchievements server.", OSD::Duration::VERY_LONG,
+                    OSD::Color::RED);
+    callback(start_session_response);
+    return;
+  }
+
+  const auto fetch_game_data_response = FetchGameData();
+  if (fetch_game_data_response != ResponseType::SUCCESS)
+  {
+    ERROR_LOG_FMT(ACHIEVEMENTS, "Unable to retrieve data from RetroAchievements server.");
+    OSD::AddMessage("Unable to retrieve data from RetroAchievements server.",
+                    OSD::Duration::VERY_LONG, OSD::Color::RED);
+    return;
+  }
+  INFO_LOG_FMT(ACHIEVEMENTS, "Loading achievements for {}.", m_game_data.title);
+
+  // Claim the lock, then queue the fetch unlock data calls, then initialize the unlock map in
+  // ActivateDeactiveAchievements. This allows the calls to process while initializing the
+  // unlock map but then forces them to wait until it's initialized before making modifications to
+  // it.
+  {
+    std::lock_guard lg{m_lock};
+    m_is_game_loaded = true;
+    m_framecount = 0;
+    LoadUnlockData([](ResponseType r_type) {});
+    ActivateDeactivateAchievements();
+    ActivateDeactivateLeaderboards();
+    ActivateDeactivateRichPresence();
+  }
+  FetchBadges();
+  // Reset this to zero so that RP immediately triggers on the first frame
+  m_last_ping_time = 0;
+  INFO_LOG_FMT(ACHIEVEMENTS, "RetroAchievements successfully loaded for {}.", m_game_data.title);
+
+  if (m_update_callback)
+    m_update_callback();
+  callback(fetch_game_data_response);
 }
 
 bool AchievementManager::IsGameLoaded() const
@@ -219,6 +327,11 @@ bool AchievementManager::IsGameLoaded() const
 
 void AchievementManager::LoadUnlockData(const ResponseCallback& callback)
 {
+  if (!Config::Get(Config::RA_ENABLED) || !IsLoggedIn())
+  {
+    callback(AchievementManager::ResponseType::NOT_ENABLED);
+    return;
+  }
   m_queue.EmplaceItem([this, callback] {
     const auto hardcore_unlock_response = FetchUnlockData(true);
     if (hardcore_unlock_response != ResponseType::SUCCESS)
@@ -237,6 +350,8 @@ void AchievementManager::LoadUnlockData(const ResponseCallback& callback)
 
 void AchievementManager::ActivateDeactivateAchievements()
 {
+  if (!Config::Get(Config::RA_ENABLED) || !IsLoggedIn())
+    return;
   bool enabled = Config::Get(Config::RA_ACHIEVEMENTS_ENABLED);
   bool unofficial = Config::Get(Config::RA_UNOFFICIAL_ENABLED);
   bool encore = Config::Get(Config::RA_ENCORE_ENABLED);
@@ -254,6 +369,8 @@ void AchievementManager::ActivateDeactivateAchievements()
 
 void AchievementManager::ActivateDeactivateLeaderboards()
 {
+  if (!Config::Get(Config::RA_ENABLED) || !IsLoggedIn())
+    return;
   bool leaderboards_enabled = Config::Get(Config::RA_LEADERBOARDS_ENABLED);
   for (u32 ix = 0; ix < m_game_data.num_leaderboards; ix++)
   {
@@ -278,6 +395,8 @@ void AchievementManager::ActivateDeactivateLeaderboards()
 
 void AchievementManager::ActivateDeactivateRichPresence()
 {
+  if (!Config::Get(Config::RA_ENABLED) || !IsLoggedIn())
+    return;
   rc_runtime_activate_richpresence(
       &m_runtime,
       (m_is_game_loaded && Config::Get(Config::RA_RICH_PRESENCE_ENABLED)) ?
@@ -383,19 +502,22 @@ void AchievementManager::FetchBadges()
   for (size_t index = 0; index < num_achievements; index++)
   {
     std::lock_guard lg{m_lock};
+
     // In case the number of achievements changes since the loop started; I just don't want
     // to lock for the ENTIRE loop so instead I reclaim the lock each cycle
     if (num_achievements != m_game_data.num_achievements)
       break;
-    rc_api_achievement_definition_t& achievement = m_game_data.achievements[index];
-    std::string name_to_fetch(achievement.badge_name);
-    const UnlockStatus& unlock_status = m_unlock_map[achievement.id];
-    if (unlock_status.unlocked_badge.name != name_to_fetch)
+
+    const auto& initial_achievement = m_game_data.achievements[index];
+    const std::string badge_name_to_fetch(initial_achievement.badge_name);
+    const UnlockStatus& unlock_status = m_unlock_map[initial_achievement.id];
+
+    if (unlock_status.unlocked_badge.name != badge_name_to_fetch)
     {
       m_image_queue.EmplaceItem([this, index] {
         std::string current_name, name_to_fetch;
         {
-          std::lock_guard lg{m_lock};
+          std::lock_guard lock{m_lock};
           if (m_game_data.num_achievements <= index)
           {
             INFO_LOG_FMT(
@@ -404,8 +526,8 @@ void AchievementManager::FetchBadges()
                 index);
             return;
           }
-          rc_api_achievement_definition_t& achievement = m_game_data.achievements[index];
-          auto unlock_itr = m_unlock_map.find(achievement.id);
+          const auto& achievement = m_game_data.achievements[index];
+          const auto unlock_itr = m_unlock_map.find(achievement.id);
           if (unlock_itr == m_unlock_map.end())
           {
             ERROR_LOG_FMT(
@@ -426,7 +548,7 @@ void AchievementManager::FetchBadges()
         {
           INFO_LOG_FMT(ACHIEVEMENTS, "Successfully downloaded unlocked achievement badge id {}.",
                        name_to_fetch);
-          std::lock_guard lg{m_lock};
+          std::lock_guard lock{m_lock};
           if (m_game_data.num_achievements <= index)
           {
             INFO_LOG_FMT(ACHIEVEMENTS,
@@ -434,8 +556,8 @@ void AchievementManager::FetchBadges()
                          index);
             return;
           }
-          rc_api_achievement_definition_t& achievement = m_game_data.achievements[index];
-          auto unlock_itr = m_unlock_map.find(achievement.id);
+          const auto& achievement = m_game_data.achievements[index];
+          const auto unlock_itr = m_unlock_map.find(achievement.id);
           if (unlock_itr == m_unlock_map.end())
           {
             ERROR_LOG_FMT(ACHIEVEMENTS,
@@ -462,12 +584,12 @@ void AchievementManager::FetchBadges()
           m_update_callback();
       });
     }
-    if (unlock_status.locked_badge.name != name_to_fetch)
+    if (unlock_status.locked_badge.name != badge_name_to_fetch)
     {
       m_image_queue.EmplaceItem([this, index] {
         std::string current_name, name_to_fetch;
         {
-          std::lock_guard lg{m_lock};
+          std::lock_guard lock{m_lock};
           if (m_game_data.num_achievements <= index)
           {
             INFO_LOG_FMT(
@@ -476,8 +598,8 @@ void AchievementManager::FetchBadges()
                 index);
             return;
           }
-          rc_api_achievement_definition_t& achievement = m_game_data.achievements[index];
-          auto unlock_itr = m_unlock_map.find(achievement.id);
+          const auto& achievement = m_game_data.achievements[index];
+          const auto unlock_itr = m_unlock_map.find(achievement.id);
           if (unlock_itr == m_unlock_map.end())
           {
             ERROR_LOG_FMT(
@@ -497,7 +619,7 @@ void AchievementManager::FetchBadges()
         {
           INFO_LOG_FMT(ACHIEVEMENTS, "Successfully downloaded locked achievement badge id {}.",
                        name_to_fetch);
-          std::lock_guard lg{m_lock};
+          std::lock_guard lock{m_lock};
           if (m_game_data.num_achievements <= index)
           {
             INFO_LOG_FMT(ACHIEVEMENTS,
@@ -505,8 +627,8 @@ void AchievementManager::FetchBadges()
                          index);
             return;
           }
-          rc_api_achievement_definition_t& achievement = m_game_data.achievements[index];
-          auto unlock_itr = m_unlock_map.find(achievement.id);
+          const auto& achievement = m_game_data.achievements[index];
+          const auto unlock_itr = m_unlock_map.find(achievement.id);
           if (unlock_itr == m_unlock_map.end())
           {
             ERROR_LOG_FMT(ACHIEVEMENTS,
@@ -553,7 +675,7 @@ void AchievementManager::DoFrame()
     rc_runtime_do_frame(
         &m_runtime,
         [](const rc_runtime_event_t* runtime_event) {
-          AchievementManager::GetInstance()->AchievementEventHandler(runtime_event);
+          GetInstance().AchievementEventHandler(runtime_event);
         },
         [](unsigned address, unsigned num_bytes, void* ud) {
           return static_cast<AchievementManager*>(ud)->MemoryPeeker(address, num_bytes, ud);
@@ -613,6 +735,12 @@ void AchievementManager::AchievementEventHandler(const rc_runtime_event_t* runti
     case RC_RUNTIME_EVENT_ACHIEVEMENT_PROGRESS_UPDATED:
       HandleAchievementProgressUpdatedEvent(runtime_event);
       break;
+    case RC_RUNTIME_EVENT_ACHIEVEMENT_PRIMED:
+      HandleAchievementPrimedEvent(runtime_event);
+      break;
+    case RC_RUNTIME_EVENT_ACHIEVEMENT_UNPRIMED:
+      HandleAchievementUnprimedEvent(runtime_event);
+      break;
     case RC_RUNTIME_EVENT_LBOARD_STARTED:
       HandleLeaderboardStartedEvent(runtime_event);
       break;
@@ -628,9 +756,21 @@ void AchievementManager::AchievementEventHandler(const rc_runtime_event_t* runti
     m_update_callback();
 }
 
-std::recursive_mutex* AchievementManager::GetLock()
+std::recursive_mutex& AchievementManager::GetLock()
 {
-  return &m_lock;
+  return m_lock;
+}
+
+bool AchievementManager::IsHardcoreModeActive() const
+{
+  std::lock_guard lg{m_lock};
+  if (!Config::Get(Config::RA_HARDCORE_ENABLED))
+    return false;
+  if (!Core::IsRunning())
+    return true;
+  if (!IsGameLoaded())
+    return false;
+  return (m_runtime.trigger_count + m_runtime.lboard_count > 0);
 }
 
 std::string AchievementManager::GetPlayerDisplayName() const
@@ -729,6 +869,33 @@ AchievementManager::RichPresence AchievementManager::GetRichPresence()
   return rich_presence;
 }
 
+void AchievementManager::SetDisabled(bool disable)
+{
+  bool previously_disabled;
+  {
+    std::lock_guard lg{m_lock};
+    previously_disabled = m_disabled;
+    m_disabled = disable;
+    if (disable && m_is_game_loaded)
+      CloseGame();
+  }
+
+  if (!previously_disabled && disable && Config::Get(Config::RA_ENABLED))
+  {
+    INFO_LOG_FMT(ACHIEVEMENTS, "Achievement Manager has been disabled.");
+    OSD::AddMessage("Please close all games to re-enable achievements.", OSD::Duration::VERY_LONG,
+                    OSD::Color::RED);
+  }
+
+  if (previously_disabled && !disable)
+    INFO_LOG_FMT(ACHIEVEMENTS, "Achievement Manager has been re-enabled.");
+};
+
+const AchievementManager::NamedIconMap& AchievementManager::GetChallengeIcons() const
+{
+  return m_active_challenges;
+}
+
 void AchievementManager::CloseGame()
 {
   {
@@ -778,6 +945,70 @@ void AchievementManager::Shutdown()
   INFO_LOG_FMT(ACHIEVEMENTS, "Achievement Manager shut down.");
 }
 
+void* AchievementManager::FilereaderOpenByFilepath(const char* path_utf8)
+{
+  auto state = std::make_unique<FilereaderState>();
+  state->volume = DiscIO::CreateVolume(path_utf8);
+  if (!state->volume)
+    return nullptr;
+  return state.release();
+}
+
+void* AchievementManager::FilereaderOpenByVolume(const char* path_utf8)
+{
+  auto state = std::make_unique<FilereaderState>();
+  {
+    auto& instance = GetInstance();
+    std::lock_guard lg{instance.GetLock()};
+    state->volume = std::move(instance.GetLoadingVolume());
+  }
+  if (!state->volume)
+    return nullptr;
+  return state.release();
+}
+
+void AchievementManager::FilereaderSeek(void* file_handle, int64_t offset, int origin)
+{
+  switch (origin)
+  {
+  case SEEK_SET:
+    static_cast<FilereaderState*>(file_handle)->position = offset;
+    break;
+  case SEEK_CUR:
+    static_cast<FilereaderState*>(file_handle)->position += offset;
+    break;
+  case SEEK_END:
+    // Unused
+    break;
+  }
+}
+
+int64_t AchievementManager::FilereaderTell(void* file_handle)
+{
+  return static_cast<FilereaderState*>(file_handle)->position;
+}
+
+size_t AchievementManager::FilereaderRead(void* file_handle, void* buffer, size_t requested_bytes)
+{
+  FilereaderState* filereader_state = static_cast<FilereaderState*>(file_handle);
+  bool success = (filereader_state->volume->Read(filereader_state->position, requested_bytes,
+                                                 static_cast<u8*>(buffer), DiscIO::PARTITION_NONE));
+  if (success)
+  {
+    filereader_state->position += requested_bytes;
+    return requested_bytes;
+  }
+  else
+  {
+    return 0;
+  }
+}
+
+void AchievementManager::FilereaderClose(void* file_handle)
+{
+  delete static_cast<FilereaderState*>(file_handle);
+}
+
 AchievementManager::ResponseType AchievementManager::VerifyCredentials(const std::string& password)
 {
   rc_api_login_response_t login_data{};
@@ -814,8 +1045,8 @@ AchievementManager::ResponseType AchievementManager::VerifyCredentials(const std
   return r_type;
 }
 
-AchievementManager::ResponseType
-AchievementManager::ResolveHash(std::array<char, HASH_LENGTH> game_hash)
+AchievementManager::ResponseType AchievementManager::ResolveHash(const Hash& game_hash,
+                                                                 u32* game_id)
 {
   rc_api_resolve_hash_response_t hash_data{};
   std::string username, api_token;
@@ -831,9 +1062,8 @@ AchievementManager::ResolveHash(std::array<char, HASH_LENGTH> game_hash)
       rc_api_process_resolve_hash_response);
   if (r_type == ResponseType::SUCCESS)
   {
-    std::lock_guard lg{m_lock};
-    m_game_id = hash_data.game_id;
-    INFO_LOG_FMT(ACHIEVEMENTS, "Hashed game ID {} for RetroAchievements.", m_game_id);
+    *game_id = hash_data.game_id;
+    INFO_LOG_FMT(ACHIEVEMENTS, "Hashed game ID {} for RetroAchievements.", *game_id);
   }
   else
   {
@@ -1275,6 +1505,34 @@ void AchievementManager::HandleAchievementProgressUpdatedEvent(
       (Config::Get(Config::RA_BADGES_ENABLED)) ?
           DecodeBadgeToOSDIcon(it->second.unlocked_badge.badge) :
           nullptr);
+}
+
+void AchievementManager::HandleAchievementPrimedEvent(const rc_runtime_event_t* runtime_event)
+{
+  if (!Config::Get(Config::RA_BADGES_ENABLED))
+    return;
+  auto it = m_unlock_map.find(runtime_event->id);
+  if (it == m_unlock_map.end())
+  {
+    ERROR_LOG_FMT(ACHIEVEMENTS, "Invalid achievement primed event with id {}.", runtime_event->id);
+    return;
+  }
+  m_active_challenges[it->second.unlocked_badge.name] =
+      DecodeBadgeToOSDIcon(it->second.unlocked_badge.badge);
+}
+
+void AchievementManager::HandleAchievementUnprimedEvent(const rc_runtime_event_t* runtime_event)
+{
+  if (!Config::Get(Config::RA_BADGES_ENABLED))
+    return;
+  auto it = m_unlock_map.find(runtime_event->id);
+  if (it == m_unlock_map.end())
+  {
+    ERROR_LOG_FMT(ACHIEVEMENTS, "Invalid achievement unprimed event with id {}.",
+                  runtime_event->id);
+    return;
+  }
+  m_active_challenges.erase(it->second.unlocked_badge.name);
 }
 
 void AchievementManager::HandleLeaderboardStartedEvent(const rc_runtime_event_t* runtime_event)

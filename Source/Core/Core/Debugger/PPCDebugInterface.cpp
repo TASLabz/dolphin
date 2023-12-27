@@ -16,6 +16,7 @@
 #include "Common/GekkoDisassembler.h"
 #include "Common/StringUtil.h"
 
+#include "Core/Config/AchievementSettings.h"
 #include "Core/Config/MainSettings.h"
 #include "Core/Core.h"
 #include "Core/Debugger/OSThread.h"
@@ -29,6 +30,10 @@
 void ApplyMemoryPatch(const Core::CPUThreadGuard& guard, Common::Debug::MemoryPatch& patch,
                       bool store_existing_value)
 {
+#ifdef USE_RETRO_ACHIEVEMENTS
+  if (Config::Get(Config::RA_HARDCORE_ENABLED))
+    return;
+#endif  // USE_RETRO_ACHIEVEMENTS
   if (patch.value.empty())
     return;
 
@@ -328,7 +333,7 @@ u32 PPCDebugInterface::ReadExtraMemory(const Core::CPUThreadGuard& guard, int me
     return PowerPC::MMU::HostRead_U32(guard, address);
   case 1:
   {
-    auto& dsp = Core::System::GetInstance().GetDSP();
+    const auto& dsp = guard.GetSystem().GetDSP();
     return (dsp.ReadARAM(address) << 24) | (dsp.ReadARAM(address + 1) << 16) |
            (dsp.ReadARAM(address + 2) << 8) | (dsp.ReadARAM(address + 3));
   }
@@ -462,7 +467,7 @@ PPCDebugInterface::GetMemoryAddressFromInstruction(const std::string& instructio
 
   if (is_reg == offset_match[0])
   {
-    unsigned register_index;
+    unsigned register_index = 0;
     Common::FromChars(offset_match.substr(1), register_index, 10);
     offset = (register_index == 0 ? 0 : m_system.GetPPCState().gpr[register_index]);
   }

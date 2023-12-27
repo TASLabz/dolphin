@@ -32,7 +32,7 @@
 #include "Core/PowerPC/Profiler.h"
 #include "Core/System.h"
 
-#if _M_X86
+#if _M_X86_64
 #include "Core/PowerPC/Jit64/Jit.h"
 #endif
 
@@ -61,7 +61,7 @@ CPUCoreBase* JitInterface::InitJitCore(PowerPC::CPUCore core)
 {
   switch (core)
   {
-#if _M_X86
+#if _M_X86_64
   case PowerPC::CPUCore::JIT64:
     m_jit = std::make_unique<Jit64>(m_system);
     break;
@@ -187,12 +187,14 @@ JitInterface::GetHostCode(u32 address) const
   }
 
   auto& ppc_state = m_system.GetPPCState();
-  JitBlock* block = m_jit->GetBlockCache()->GetBlockFromStartAddress(address, ppc_state.msr.Hex);
+  JitBlock* block =
+      m_jit->GetBlockCache()->GetBlockFromStartAddress(address, ppc_state.feature_flags);
   if (!block)
   {
     for (int i = 0; i < 500; i++)
     {
-      block = m_jit->GetBlockCache()->GetBlockFromStartAddress(address - 4 * i, ppc_state.msr.Hex);
+      block = m_jit->GetBlockCache()->GetBlockFromStartAddress(address - 4 * i,
+                                                               ppc_state.feature_flags);
       if (block)
         break;
     }
