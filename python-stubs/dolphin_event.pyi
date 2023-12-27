@@ -17,6 +17,29 @@ async def frameadvance() -> None:
 
 
 @type_check_only
+class _CodebreakpointCallback(Protocol):
+    def __call__(self, addr: int) -> None:
+        """
+        Example callback stub for on_codebreakpoint.
+
+        :param addr: address that was accessed
+        """
+
+
+def on_codebreakpoint(callback: _CodebreakpointCallback | None) -> None:
+    """
+    Registers a callback to be called every time a previously added code breakpoint is hit.
+
+    :param callback:
+    :return:
+    """
+
+
+async def codebreakpoint() -> tuple[int,]:
+    """Awaitable event that completes once a previously added code breakpoint is hit."""
+
+
+@type_check_only
 class _MemorybreakpointCallback(Protocol):
     def __call__(self, is_write: bool, addr: int, value: int) -> None:
         """
