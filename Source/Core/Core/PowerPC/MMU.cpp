@@ -95,12 +95,12 @@ inline s64 bswap(s64 val)
 }
 // =================
 
-static bool IsOpcodeFlag(XCheckTLBFlag flag)
+static constexpr bool IsOpcodeFlag(XCheckTLBFlag flag)
 {
   return flag == XCheckTLBFlag::Opcode || flag == XCheckTLBFlag::OpcodeNoException;
 }
 
-static bool IsNoExceptionFlag(XCheckTLBFlag flag)
+static constexpr bool IsNoExceptionFlag(XCheckTLBFlag flag)
 {
   return flag == XCheckTLBFlag::NoException || flag == XCheckTLBFlag::OpcodeNoException;
 }
@@ -158,6 +158,12 @@ static void EFB_Write(u32 data, u32 addr)
 template <XCheckTLBFlag flag, typename T, bool never_translate>
 T MMU::ReadFromHardware(u32 em_address)
 {
+  // ReadFromHardware is currently used with XCheckTLBFlag::OpcodeNoException by host instruction
+  // functions. Actual instruction decoding (which can raise exceptions and uses icache) is handled
+  // by TryReadInstruction.
+  static_assert(flag == XCheckTLBFlag::NoException || flag == XCheckTLBFlag::Read ||
+                flag == XCheckTLBFlag::OpcodeNoException);
+
   const u32 em_address_start_page = em_address & ~HW_PAGE_MASK;
   const u32 em_address_end_page = (em_address + sizeof(T) - 1) & ~HW_PAGE_MASK;
   if (em_address_start_page != em_address_end_page)
@@ -176,7 +182,8 @@ T MMU::ReadFromHardware(u32 em_address)
 
   bool wi = false;
 
-  if (!never_translate && m_ppc_state.msr.DR)
+  if (!never_translate &&
+      (IsOpcodeFlag(flag) ? m_ppc_state.msr.IR.Value() : m_ppc_state.msr.DR.Value()))
   {
     auto translated_addr = TranslateAddress<flag>(em_address);
     if (!translated_addr.Success())
@@ -268,6 +275,8 @@ T MMU::ReadFromHardware(u32 em_address)
 template <XCheckTLBFlag flag, bool never_translate>
 void MMU::WriteToHardware(u32 em_address, const u32 data, const u32 size)
 {
+  static_assert(flag == XCheckTLBFlag::NoException || flag == XCheckTLBFlag::Write);
+
   DEBUG_ASSERT(size <= 4);
 
   const u32 em_address_start_page = em_address & ~HW_PAGE_MASK;
@@ -518,7 +527,7 @@ std::optional<ReadResult<u32>> MMU::HostTryReadInstruction(const Core::CPUThread
   case RequestedAddressSpace::Effective:
   {
     const u32 value = mmu.ReadFromHardware<XCheckTLBFlag::OpcodeNoException, u32>(address);
-    return ReadResult<u32>(!!mmu.m_ppc_state.msr.DR, value);
+    return ReadResult<u32>(!!mmu.m_ppc_state.msr.IR, value);
   }
   case RequestedAddressSpace::Physical:
   {
@@ -527,7 +536,7 @@ std::optional<ReadResult<u32>> MMU::HostTryReadInstruction(const Core::CPUThread
   }
   case RequestedAddressSpace::Virtual:
   {
-    if (!mmu.m_ppc_state.msr.DR)
+    if (!mmu.m_ppc_state.msr.IR)
       return std::nullopt;
     const u32 value = mmu.ReadFromHardware<XCheckTLBFlag::OpcodeNoException, u32>(address);
     return ReadResult<u32>(true, value);
@@ -1577,11 +1586,13 @@ MMU::TranslateAddressResult MMU::TranslatePageAddress(const EffectiveAddress add
 
     for (int i = 0; i < 8; i++, pteg_addr += 8)
     {
-      const u32 pteg = ReadFromHardware<flag, u32, true>(pteg_addr);
+      constexpr XCheckTLBFlag pte_read_flag =
+          IsNoExceptionFlag(flag) ? XCheckTLBFlag::NoException : XCheckTLBFlag::Read;
+      const u32 pteg = ReadFromHardware<pte_read_flag, u32, true>(pteg_addr);
 
       if (pte1.Hex == pteg)
       {
-        UPTE_Hi pte2(ReadFromHardware<flag, u32, true>(pteg_addr + 4));
+        UPTE_Hi pte2(ReadFromHardware<pte_read_flag, u32, true>(pteg_addr + 4));
 
         // set the access bits
         switch (flag)
@@ -1794,100 +1805,51 @@ std::optional<u32> MMU::GetTranslatedAddress(u32 address)
   return std::optional<u32>(result.address);
 }
 
-void ClearDCacheLineFromJit64(MMU& mmu, u32 address)
+void ClearDCacheLineFromJit(MMU& mmu, u32 address)
 {
   mmu.ClearDCacheLine(address);
 }
-u32 ReadU8ZXFromJit64(MMU& mmu, u32 address)
+u32 ReadU8FromJit(MMU& mmu, u32 address)
 {
   return mmu.Read_U8(address);
 }
-u32 ReadU16ZXFromJit64(MMU& mmu, u32 address)
+u32 ReadU16FromJit(MMU& mmu, u32 address)
 {
   return mmu.Read_U16(address);
 }
-u32 ReadU32FromJit64(MMU& mmu, u32 address)
+u32 ReadU32FromJit(MMU& mmu, u32 address)
 {
   return mmu.Read_U32(address);
 }
-u64 ReadU64FromJit64(MMU& mmu, u32 address)
+u64 ReadU64FromJit(MMU& mmu, u32 address)
 {
   return mmu.Read_U64(address);
 }
-void WriteU8FromJit64(MMU& mmu, u32 var, u32 address)
+void WriteU8FromJit(MMU& mmu, u32 var, u32 address)
 {
   mmu.Write_U8(var, address);
 }
-void WriteU16FromJit64(MMU& mmu, u32 var, u32 address)
+void WriteU16FromJit(MMU& mmu, u32 var, u32 address)
 {
   mmu.Write_U16(var, address);
 }
-void WriteU32FromJit64(MMU& mmu, u32 var, u32 address)
+void WriteU32FromJit(MMU& mmu, u32 var, u32 address)
 {
   mmu.Write_U32(var, address);
 }
-void WriteU64FromJit64(MMU& mmu, u64 var, u32 address)
+void WriteU64FromJit(MMU& mmu, u64 var, u32 address)
 {
   mmu.Write_U64(var, address);
 }
-void WriteU16SwapFromJit64(MMU& mmu, u32 var, u32 address)
+void WriteU16SwapFromJit(MMU& mmu, u32 var, u32 address)
 {
   mmu.Write_U16_Swap(var, address);
 }
-void WriteU32SwapFromJit64(MMU& mmu, u32 var, u32 address)
+void WriteU32SwapFromJit(MMU& mmu, u32 var, u32 address)
 {
   mmu.Write_U32_Swap(var, address);
 }
-void WriteU64SwapFromJit64(MMU& mmu, u64 var, u32 address)
-{
-  mmu.Write_U64_Swap(var, address);
-}
-
-void ClearDCacheLineFromJitArm64(u32 address, MMU& mmu)
-{
-  mmu.ClearDCacheLine(address);
-}
-u8 ReadU8FromJitArm64(u32 address, MMU& mmu)
-{
-  return mmu.Read_U8(address);
-}
-u16 ReadU16FromJitArm64(u32 address, MMU& mmu)
-{
-  return mmu.Read_U16(address);
-}
-u32 ReadU32FromJitArm64(u32 address, MMU& mmu)
-{
-  return mmu.Read_U32(address);
-}
-u64 ReadU64FromJitArm64(u32 address, MMU& mmu)
-{
-  return mmu.Read_U64(address);
-}
-void WriteU8FromJitArm64(u32 var, u32 address, MMU& mmu)
-{
-  mmu.Write_U8(var, address);
-}
-void WriteU16FromJitArm64(u32 var, u32 address, MMU& mmu)
-{
-  mmu.Write_U16(var, address);
-}
-void WriteU32FromJitArm64(u32 var, u32 address, MMU& mmu)
-{
-  mmu.Write_U32(var, address);
-}
-void WriteU64FromJitArm64(u64 var, u32 address, MMU& mmu)
-{
-  mmu.Write_U64(var, address);
-}
-void WriteU16SwapFromJitArm64(u32 var, u32 address, MMU& mmu)
-{
-  mmu.Write_U16_Swap(var, address);
-}
-void WriteU32SwapFromJitArm64(u32 var, u32 address, MMU& mmu)
-{
-  mmu.Write_U32_Swap(var, address);
-}
-void WriteU64SwapFromJitArm64(u64 var, u32 address, MMU& mmu)
+void WriteU64SwapFromJit(MMU& mmu, u64 var, u32 address)
 {
   mmu.Write_U64_Swap(var, address);
 }

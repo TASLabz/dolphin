@@ -393,6 +393,8 @@ add_library(core
   IOS/Network/KD/VFF/VFFUtil.h
   IOS/Network/KD/WC24File.h
   IOS/Network/KD/Mail/MailCommon.h
+  IOS/Network/KD/Mail/WC24FriendList.cpp
+  IOS/Network/KD/Mail/WC24FriendList.h
   IOS/Network/KD/Mail/WC24Send.cpp
   IOS/Network/KD/Mail/WC24Send.h
   IOS/Network/MACUtils.cpp
@@ -547,7 +549,7 @@ add_library(core
   WiiUtils.h
 )
 
-if(_M_X86)
+if(_M_X86_64)
   target_sources(core PRIVATE
     DSP/Jit/x64/DSPEmitter.cpp
     DSP/Jit/x64/DSPEmitter.h
@@ -652,7 +654,7 @@ PRIVATE
 )
 
 if ((DEFINED CMAKE_ANDROID_ARCH_ABI AND CMAKE_ANDROID_ARCH_ABI MATCHES "x86|x86_64") OR
-    (NOT DEFINED CMAKE_ANDROID_ARCH_ABI AND _M_X86))
+    (NOT DEFINED CMAKE_ANDROID_ARCH_ABI AND _M_X86_64))
   target_link_libraries(core PRIVATE bdisasm)
 endif()
 
