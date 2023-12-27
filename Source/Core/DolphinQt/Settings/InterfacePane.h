@@ -11,6 +11,7 @@ class QLabel;
 class QRadioButton;
 class QSlider;
 class QVBoxLayout;
+class ToolTipCheckBox;
 
 class InterfacePane final : public QWidget
 {
@@ -38,7 +39,7 @@ private:
   QCheckBox* m_checkbox_top_window;
   QCheckBox* m_checkbox_use_builtin_title_database;
   QCheckBox* m_checkbox_use_userstyle;
-  QCheckBox* m_checkbox_show_debugging_ui;
+  ToolTipCheckBox* m_checkbox_show_debugging_ui;
   QCheckBox* m_checkbox_focused_hotkeys;
   QCheckBox* m_checkbox_use_covers;
   QCheckBox* m_checkbox_disable_screensaver;
