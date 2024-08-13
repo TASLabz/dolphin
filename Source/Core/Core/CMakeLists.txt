@@ -71,6 +71,8 @@ add_library(core
   CoreTiming.h
   CPUThreadConfigCallback.cpp
   CPUThreadConfigCallback.h
+  Debugger/BranchWatch.cpp
+  Debugger/BranchWatch.h
   Debugger/CodeTrace.cpp
   Debugger/CodeTrace.h
   Debugger/DebugInterface.h
@@ -197,6 +199,12 @@ add_library(core
   HW/DVD/DVDThread.h
   HW/DVD/FileMonitor.cpp
   HW/DVD/FileMonitor.h
+  HW/EXI/BBA/TAPServerConnection.cpp
+  HW/EXI/BBA/TAPServerBBA.cpp
+  HW/EXI/BBA/XLINK_KAI_BBA.cpp
+  HW/EXI/BBA/BuiltIn.cpp
+  HW/EXI/BBA/BuiltIn.h
+  HW/EXI/Modem/TAPServerModem.cpp
   HW/EXI/EXI_Channel.cpp
   HW/EXI/EXI_Channel.h
   HW/EXI/EXI_Device.cpp
@@ -217,6 +225,8 @@ add_library(core
   HW/EXI/EXI_DeviceMemoryCard.h
   HW/EXI/EXI_DeviceMic.cpp
   HW/EXI/EXI_DeviceMic.h
+  HW/EXI/EXI_DeviceModem.cpp
+  HW/EXI/EXI_DeviceModem.h
   HW/EXI/EXI.cpp
   HW/EXI/EXI.h
   HW/GBAPad.cpp
@@ -346,6 +356,10 @@ add_library(core
   IOS/Device.h
   IOS/DeviceStub.cpp
   IOS/DeviceStub.h
+  IOS/Crypto/AesDevice.cpp
+  IOS/Crypto/AesDevice.h
+  IOS/Crypto/Sha.cpp
+  IOS/Crypto/Sha.h
   IOS/DI/DI.cpp
   IOS/DI/DI.h
   IOS/DolphinDevice.cpp
@@ -389,6 +403,8 @@ add_library(core
   IOS/Network/KD/VFF/VFFUtil.h
   IOS/Network/KD/WC24File.h
   IOS/Network/KD/Mail/MailCommon.h
+  IOS/Network/KD/Mail/WC24FriendList.cpp
+  IOS/Network/KD/Mail/WC24FriendList.h
   IOS/Network/KD/Mail/WC24Send.cpp
   IOS/Network/KD/Mail/WC24Send.h
   IOS/Network/MACUtils.cpp
@@ -423,8 +439,12 @@ add_library(core
   IOS/USB/Common.h
   IOS/USB/Emulated/Infinity.cpp
   IOS/USB/Emulated/Infinity.h
-  IOS/USB/Emulated/Skylander.cpp
-  IOS/USB/Emulated/Skylander.h
+  IOS/USB/Emulated/Skylanders/Skylander.cpp
+  IOS/USB/Emulated/Skylanders/Skylander.h
+  IOS/USB/Emulated/Skylanders/SkylanderCrypto.cpp
+  IOS/USB/Emulated/Skylanders/SkylanderCrypto.h
+  IOS/USB/Emulated/Skylanders/SkylanderFigure.cpp
+  IOS/USB/Emulated/Skylanders/SkylanderFigure.h
   IOS/USB/Host.cpp
   IOS/USB/Host.h
   IOS/USB/OH0/OH0.cpp
@@ -471,8 +491,10 @@ add_library(core
   PowerPC/BreakPoints.h
   PowerPC/CachedInterpreter/CachedInterpreter.cpp
   PowerPC/CachedInterpreter/CachedInterpreter.h
-  PowerPC/CachedInterpreter/InterpreterBlockCache.cpp
-  PowerPC/CachedInterpreter/InterpreterBlockCache.h
+  PowerPC/CachedInterpreter/CachedInterpreterBlockCache.cpp
+  PowerPC/CachedInterpreter/CachedInterpreterBlockCache.h
+  PowerPC/CachedInterpreter/CachedInterpreterEmitter.cpp
+  PowerPC/CachedInterpreter/CachedInterpreterEmitter.h
   PowerPC/ConditionRegister.cpp
   PowerPC/ConditionRegister.h
   PowerPC/Expression.cpp
@@ -513,7 +535,6 @@ add_library(core
   PowerPC/PPCSymbolDB.h
   PowerPC/PPCTables.cpp
   PowerPC/PPCTables.h
-  PowerPC/Profiler.h
   PowerPC/SignatureDB/CSVSignatureDB.cpp
   PowerPC/SignatureDB/CSVSignatureDB.h
   PowerPC/SignatureDB/DSYSignatureDB.cpp
@@ -539,7 +560,7 @@ add_library(core
   WiiUtils.h
 )
 
-if(_M_X86)
+if(_M_X86_64)
   target_sources(core PRIVATE
     DSP/Jit/x64/DSPEmitter.cpp
     DSP/Jit/x64/DSPEmitter.h
@@ -644,7 +665,7 @@ PRIVATE
 )
 
 if ((DEFINED CMAKE_ANDROID_ARCH_ABI AND CMAKE_ANDROID_ARCH_ABI MATCHES "x86|x86_64") OR
-    (NOT DEFINED CMAKE_ANDROID_ARCH_ABI AND _M_X86))
+    (NOT DEFINED CMAKE_ANDROID_ARCH_ABI AND _M_X86_64))
   target_link_libraries(core PRIVATE bdisasm)
 endif()
 
@@ -696,9 +717,6 @@ if(WIN32)
   target_sources(core PRIVATE
     HW/EXI/BBA/TAP_Win32.cpp
     HW/EXI/BBA/TAP_Win32.h
-    HW/EXI/BBA/XLINK_KAI_BBA.cpp
-    HW/EXI/BBA/BuiltIn.cpp
-    HW/EXI/BBA/BuiltIn.h
     HW/WiimoteReal/IOWin.cpp
     HW/WiimoteReal/IOWin.h
   )
@@ -712,18 +730,11 @@ if(WIN32)
 elseif(APPLE)
   target_sources(core PRIVATE
     HW/EXI/BBA/TAP_Apple.cpp
-    HW/EXI/BBA/TAPServer_Apple.cpp
-    HW/EXI/BBA/XLINK_KAI_BBA.cpp
-    HW/EXI/BBA/BuiltIn.cpp
-    HW/EXI/BBA/BuiltIn.h
   )
   target_link_libraries(core PUBLIC ${IOB_LIBRARY})
 elseif(UNIX)
   target_sources(core PRIVATE
     HW/EXI/BBA/TAP_Unix.cpp
-    HW/EXI/BBA/XLINK_KAI_BBA.cpp
-    HW/EXI/BBA/BuiltIn.cpp
-    HW/EXI/BBA/BuiltIn.h
   )
   if(ANDROID)
     target_sources(core PRIVATE
@@ -754,6 +765,12 @@ if(CMAKE_SYSTEM_NAME MATCHES "Linux")
   endif()
 endif()
 
+if(CMAKE_SYSTEM_NAME MATCHES "OpenBSD")
+  # OpenBSD doesn't allow memory to be both writable and executable by default.
+  # The JIT currently needs this.
+  target_link_options(core PUBLIC -Wl,-zwxneeded)
+endif()
+
 if(TARGET Hidapi::Hidapi)
   target_sources(core PRIVATE
     HW/WiimoteReal/IOhidapi.cpp
@@ -776,6 +793,7 @@ if(MSVC)
 endif()
 
 if(USE_RETRO_ACHIEVEMENTS)
-  target_link_libraries(core PRIVATE rcheevos)
-  target_compile_definitions(core PRIVATE -DUSE_RETRO_ACHIEVEMENTS)
+  target_link_libraries(core PUBLIC rcheevos)
+  target_compile_definitions(core PUBLIC -DUSE_RETRO_ACHIEVEMENTS)
+  target_compile_definitions(core PUBLIC -DRC_CLIENT_SUPPORTS_HASH)
 endif()

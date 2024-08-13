@@ -28,49 +28,18 @@ add_executable(dolphin-emu
   CheatSearchWidget.h
   CheatsManager.cpp
   CheatsManager.h
+  Achievements/AchievementBox.cpp
+  Achievements/AchievementBox.h
   Achievements/AchievementHeaderWidget.cpp
   Achievements/AchievementHeaderWidget.h
+  Achievements/AchievementLeaderboardWidget.cpp
+  Achievements/AchievementLeaderboardWidget.h
   Achievements/AchievementProgressWidget.cpp
   Achievements/AchievementProgressWidget.h
   Achievements/AchievementSettingsWidget.cpp
   Achievements/AchievementSettingsWidget.h
   Achievements/AchievementsWindow.cpp
   Achievements/AchievementsWindow.h
-  ConvertDialog.cpp
-  ConvertDialog.h
-  DiscordHandler.cpp
-  DiscordHandler.h
-  DiscordJoinRequestDialog.cpp
-  DiscordJoinRequestDialog.h
-  FIFO/FIFOPlayerWindow.cpp
-  FIFO/FIFOPlayerWindow.h
-  FIFO/FIFOAnalyzer.cpp
-  FIFO/FIFOAnalyzer.h
-  Host.cpp
-  Host.h
-  HotkeyScheduler.cpp
-  HotkeyScheduler.h
-  Main.cpp
-  MainWindow.cpp
-  MainWindow.h
-  MenuBar.cpp
-  MenuBar.h
-  NKitWarningDialog.cpp
-  NKitWarningDialog.h
-  RenderWidget.cpp
-  RenderWidget.h
-  Resources.cpp
-  Resources.h
-  SearchBar.cpp
-  SearchBar.h
-  Settings.cpp
-  Settings.h
-  ToolBar.cpp
-  ToolBar.h
-  Translation.cpp
-  Translation.h
-  WiiUpdate.cpp
-  WiiUpdate.h
   Config/ARCodeWidget.cpp
   Config/ARCodeWidget.h
   Config/CheatCodeEditor.cpp
@@ -139,6 +108,8 @@ add_executable(dolphin-emu
   Config/GraphicsModListWidget.h
   Config/GraphicsModWarningWidget.cpp
   Config/GraphicsModWarningWidget.h
+  Config/HardcoreWarningWidget.cpp
+  Config/HardcoreWarningWidget.h
   Config/InfoWidget.cpp
   Config/InfoWidget.h
   Config/LogConfigWidget.cpp
@@ -235,16 +206,26 @@ add_executable(dolphin-emu
   Config/WiimoteControllersWidget.h
   ConvertDialog.cpp
   ConvertDialog.h
+  Debugger/AssembleInstructionDialog.cpp
+  Debugger/AssembleInstructionDialog.h
+  Debugger/AssemblerWidget.cpp
+  Debugger/AssemblerWidget.h
+  Debugger/AssemblyEditor.cpp
+  Debugger/AssemblyEditor.h
+  Debugger/BranchWatchDialog.cpp
+  Debugger/BranchWatchDialog.h
+  Debugger/BranchWatchTableModel.cpp
+  Debugger/BranchWatchTableModel.h
   Debugger/BreakpointDialog.cpp
   Debugger/BreakpointDialog.h
   Debugger/BreakpointWidget.cpp
   Debugger/BreakpointWidget.h
-  Debugger/CodeDiffDialog.cpp
-  Debugger/CodeDiffDialog.h
   Debugger/CodeViewWidget.cpp
   Debugger/CodeViewWidget.h
   Debugger/CodeWidget.cpp
   Debugger/CodeWidget.h
+  Debugger/GekkoSyntaxHighlight.cpp
+  Debugger/GekkoSyntaxHighlight.h
   Debugger/JITWidget.cpp
   Debugger/JITWidget.h
   Debugger/MemoryViewWidget.cpp
@@ -320,6 +301,8 @@ add_executable(dolphin-emu
   QtUtils/AspectRatioWidget.h
   QtUtils/BlockUserInputFilter.cpp
   QtUtils/BlockUserInputFilter.h
+  QtUtils/ClearLayoutRecursively.cpp
+  QtUtils/ClearLayoutRecursively.h
   QtUtils/DolphinFileDialog.cpp
   QtUtils/DolphinFileDialog.h
   QtUtils/DoubleClickEventFilter.cpp
@@ -328,6 +311,7 @@ add_executable(dolphin-emu
   QtUtils/ElidedButton.h
   QtUtils/FileOpenEventFilter.cpp
   QtUtils/FileOpenEventFilter.h
+  QtUtils/FromStdString.h
   QtUtils/ImageConverter.cpp
   QtUtils/ImageConverter.h
   QtUtils/ModalMessageBox.cpp
@@ -339,8 +323,6 @@ add_executable(dolphin-emu
   QtUtils/PartiallyClosableTabWidget.h
   QtUtils/SetWindowDecorations.cpp
   QtUtils/SetWindowDecorations.h
-  QtUtils/ImageConverter.cpp
-  QtUtils/ImageConverter.h
   QtUtils/SignalBlocking.h
   QtUtils/UTF8CodePointCountValidator.cpp
   QtUtils/UTF8CodePointCountValidator.h
@@ -384,6 +366,8 @@ add_executable(dolphin-emu
   Settings/USBDeviceAddToWhitelistDialog.h
   Settings/WiiPane.cpp
   Settings/WiiPane.h
+  SkylanderPortal/SkylanderModifyDialog.cpp
+  SkylanderPortal/SkylanderModifyDialog.h
   SkylanderPortal/SkylanderPortalWindow.cpp
   SkylanderPortal/SkylanderPortalWindow.h
   TAS/GCTASInputWindow.cpp
@@ -602,15 +586,14 @@ endif()
 
 if(APPLE)
   include(BundleUtilities)
-  set(BUNDLE_PATH ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/Dolphin.app)
+  set(BUNDLE_PATH ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/DolphinQt.app)
 
   # Ask for an application bundle.
   set_target_properties(dolphin-emu PROPERTIES
     MACOSX_BUNDLE true
-    MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist.in
-    XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS "${CMAKE_CURRENT_SOURCE_DIR}/DolphinEmu.entitlements"
-    XCODE_ATTRIBUTE_OTHER_CODE_SIGN_FLAGS "--deep --options=runtime"
-    OUTPUT_NAME Dolphin
+    MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_BINARY_DIR}/Info.plist"
+    XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ""
+    OUTPUT_NAME DolphinQt
     )
 
   # Copy qt.conf into the bundle
@@ -647,10 +630,19 @@ if(APPLE)
 
   # Copy MoltenVK into the bundle
   if(ENABLE_VULKAN)
-    add_dependencies(dolphin-emu MoltenVK)
-    ExternalProject_Get_Property(MoltenVK SOURCE_DIR)
-    target_sources(dolphin-emu PRIVATE "${SOURCE_DIR}/Package/Release/MoltenVK/dylib/macOS/libMoltenVK.dylib")
-    set_source_files_properties("${SOURCE_DIR}/Package/Release/MoltenVK/dylib/macOS/libMoltenVK.dylib" PROPERTIES MACOSX_PACKAGE_LOCATION Frameworks GENERATED ON)
+    if(USE_BUNDLED_MOLTENVK)
+      add_dependencies(dolphin-emu MoltenVK)
+      ExternalProject_Get_Property(MoltenVK SOURCE_DIR)
+      target_sources(dolphin-emu PRIVATE "${SOURCE_DIR}/Package/Release/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib")
+      set_source_files_properties("${SOURCE_DIR}/Package/Release/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib" PROPERTIES MACOSX_PACKAGE_LOCATION Frameworks GENERATED ON)
+    else()
+      find_file(MOLTENVK_DYLIB NAMES libMoltenVK.dylib PATH_SUFFIXES lib)
+      if(NOT MOLTENVK_DYLIB)
+        message(FATAL_ERROR "Couldn't find libMoltenVK.dylib.  Enable USE_BUNDLED_MOLTENVK?")
+      endif()
+      target_sources(dolphin-emu PRIVATE ${MOLTENVK_DYLIB})
+      set_source_files_properties(${MOLTENVK_DYLIB} PROPERTIES MACOSX_PACKAGE_LOCATION Frameworks)
+    endif()
   endif()
 
   # Update library references to make the bundle portable
@@ -663,9 +655,13 @@ if(APPLE)
     $<TARGET_FILE:dolphin-emu>)
 
   if(MACOS_CODE_SIGNING)
-    # Code sign make file builds
-    add_custom_command(TARGET dolphin-emu POST_BUILD
-      COMMAND /usr/bin/codesign -f -s "${MACOS_CODE_SIGNING_IDENTITY}" --deep --options=runtime --entitlements "${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/DolphinEmu$<$<CONFIG:Debug>:Debug>.entitlements" "$<TARGET_BUNDLE_DIR:dolphin-emu>")
+    add_custom_command(TARGET dolphin-emu
+      POST_BUILD
+      COMMAND "${CMAKE_SOURCE_DIR}/Tools/mac-codesign.sh"
+      "-e" "${CMAKE_CURRENT_SOURCE_DIR}/DolphinEmu$<$<CONFIG:Debug>:Debug>.entitlements"
+      "${MACOS_CODE_SIGNING_IDENTITY}"
+      "${BUNDLE_PATH}"
+    )
   endif()
 else()
   install(TARGETS dolphin-emu RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

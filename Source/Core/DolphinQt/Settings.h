@@ -51,17 +51,32 @@ public:
   static QSettings& GetQSettings();
 
   // UI
-  void SetThemeName(const QString& theme_name);
+  void TriggerThemeChanged();
   void InitDefaultPalette();
   void UpdateSystemDark();
   void SetSystemDark(bool dark);
   bool IsSystemDark();
   bool IsThemeDark();
-  void SetCurrentUserStyle(const QString& stylesheet_name);
-  QString GetCurrentUserStyle() const;
 
-  void SetUserStylesEnabled(bool enabled);
-  bool AreUserStylesEnabled() const;
+  void SetUserStyleName(const QString& stylesheet_name);
+  QString GetUserStyleName() const;
+
+  enum class StyleType : int
+  {
+    System = 0,
+    Light = 1,
+    Dark = 2,
+    User = 3,
+
+    MinValue = 0,
+    MaxValue = 3,
+  };
+
+  void SetStyleType(StyleType type);
+  StyleType GetStyleType() const;
+
+  // this evaluates the current stylesheet settings and refreshes the GUI with them
+  void ApplyStyle();
 
   void GetToolTipStyle(QColor& window_color, QColor& text_color, QColor& emphasis_text_color,
                        QColor& border_color, const QPalette& palette,
@@ -89,7 +104,6 @@ public:
   void RefreshGameList();
   void NotifyRefreshGameListStarted();
   void NotifyRefreshGameListComplete();
-  void RefreshMetadata();
   void NotifyMetadataRefreshComplete();
   void ReloadTitleDB();
   bool IsAutoRefreshEnabled() const;
@@ -106,10 +120,11 @@ public:
   bool IsUSBKeyboardConnected() const;
   void SetUSBKeyboardConnected(bool connected);
 
+  void SetIsContinuouslyFrameStepping(bool is_stepping);
+  bool GetIsContinuouslyFrameStepping() const;
+
   // Graphics
-  void SetCursorVisibility(Config::ShowCursor hideCursor);
   Config::ShowCursor GetCursorVisibility() const;
-  void SetLockCursor(bool lock_cursor);
   bool GetLockCursor() const;
   void SetKeepWindowOnTop(bool top);
   bool IsKeepWindowOnTopEnabled() const;
@@ -130,7 +145,6 @@ public:
 
   // Cheats
   bool GetCheatsEnabled() const;
-  void SetCheatsEnabled(bool enabled);
 
   // Debug
   void SetDebugModeEnabled(bool enabled);
@@ -153,6 +167,8 @@ public:
   bool IsJITVisible() const;
   void SetScriptingVisible(bool enabled);
   bool IsScriptingVisible() const;
+  void SetAssemblerVisible(bool enabled);
+  bool IsAssemblerVisible() const;
   QFont GetDebugFont() const;
   void SetDebugFont(QFont font);
 
@@ -201,8 +217,9 @@ signals:
   void NetworkVisibilityChanged(bool visible);
   void JITVisibilityChanged(bool visible);
   void ScriptingVisibilityChanged(bool visible);
+  void AssemblerVisibilityChanged(bool visible);
   void DebugModeToggled(bool enabled);
-  void DebugFontChanged(QFont font);
+  void DebugFontChanged(const QFont& font);
   void AutoUpdateTrackChanged(const QString& mode);
   void FallbackRegionChanged(const DiscIO::Region& region);
   void AnalyticsToggled(bool enabled);
@@ -211,11 +228,14 @@ signals:
   void SDCardInsertionChanged(bool inserted);
   void USBKeyboardConnectionChanged(bool connected);
   void EnableGfxModsChanged(bool enabled);
+  void HardcoreStateChanged();
 
 private:
   Settings();
 
   bool m_batch = false;
+  std::atomic<bool> m_continuously_frame_stepping = false;
+
   std::shared_ptr<NetPlay::NetPlayClient> m_client;
   std::shared_ptr<NetPlay::NetPlayServer> m_server;
   ControllerInterface::HotplugCallbackHandle m_hotplug_callback_handle;

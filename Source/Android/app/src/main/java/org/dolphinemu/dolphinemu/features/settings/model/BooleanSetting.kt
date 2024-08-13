@@ -14,6 +14,8 @@ enum class BooleanSetting(
     MAIN_SKIP_IPL(Settings.FILE_DOLPHIN, Settings.SECTION_INI_CORE, "SkipIPL", true),
     MAIN_DSP_HLE(Settings.FILE_DOLPHIN, Settings.SECTION_INI_CORE, "DSPHLE", true),
     MAIN_FASTMEM(Settings.FILE_DOLPHIN, Settings.SECTION_INI_CORE, "Fastmem", true),
+    MAIN_FASTMEM_ARENA(Settings.FILE_DOLPHIN, Settings.SECTION_INI_CORE, "FastmemArena", true),
+    MAIN_LARGE_ENTRY_POINTS_MAP(Settings.FILE_DOLPHIN, Settings.SECTION_INI_CORE, "LargeEntryPointsMap", true),
     MAIN_CPU_THREAD(Settings.FILE_DOLPHIN, Settings.SECTION_INI_CORE, "CPUThread", true),
     MAIN_SYNC_ON_SKIP_IDLE(
         Settings.FILE_DOLPHIN,
@@ -210,6 +212,12 @@ enum class BooleanSetting(
         Settings.FILE_DOLPHIN,
         Settings.SECTION_DEBUG,
         "JitRegisterCacheOff",
+        false
+    ),
+    MAIN_DEBUG_JIT_ENABLE_PROFILING(
+        Settings.FILE_DOLPHIN,
+        Settings.SECTION_DEBUG,
+        "JitEnableProfiling",
         false
     ),
     MAIN_EMULATE_SKYLANDER_PORTAL(
@@ -761,7 +769,19 @@ enum class BooleanSetting(
         Settings.FILE_GFX,
         Settings.SECTION_GFX_ENHANCEMENTS,
         "ArbitraryMipmapDetection",
-        true
+        false
+    ),
+    GFX_CC_CORRECT_COLOR_SPACE(
+        Settings.FILE_GFX,
+        Settings.SECTION_GFX_COLOR_CORRECTION,
+        "CorrectColorSpace",
+        false
+    ),
+    GFX_CC_CORRECT_GAMMA(
+        Settings.FILE_GFX,
+        Settings.SECTION_GFX_COLOR_CORRECTION,
+        "CorrectGamma",
+        false
     ),
     GFX_CC_CORRECT_COLOR_SPACE(
         Settings.FILE_GFX,
@@ -897,12 +917,13 @@ enum class BooleanSetting(
     companion object {
         private val NOT_RUNTIME_EDITABLE_ARRAY = arrayOf(
             MAIN_DSP_HLE,
+            MAIN_FASTMEM_ARENA,
+            MAIN_LARGE_ENTRY_POINTS_MAP,
             MAIN_CPU_THREAD,
             MAIN_ENABLE_CHEATS,
             MAIN_OVERRIDE_REGION_SETTINGS,
             MAIN_MMU,
             MAIN_PAUSE_ON_PANIC,
-            MAIN_ACCURATE_CPU_CACHE,
             MAIN_RAM_OVERRIDE_ENABLE,
             MAIN_CUSTOM_RTC_ENABLE,
             MAIN_DSP_JIT,

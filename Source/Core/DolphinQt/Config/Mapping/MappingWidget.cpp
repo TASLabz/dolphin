@@ -3,6 +3,8 @@
 
 #include "DolphinQt/Config/Mapping/MappingWidget.h"
 
+#include <fmt/core.h>
+
 #include <QCheckBox>
 #include <QDialogButtonBox>
 #include <QFormLayout>
@@ -25,6 +27,7 @@
 #include "InputCommon/ControllerEmu/ControllerEmu.h"
 #include "InputCommon/ControllerEmu/Setting/NumericSetting.h"
 #include "InputCommon/ControllerEmu/StickGate.h"
+#include "InputCommon/ControllerInterface/ControllerInterface.h"
 
 MappingWidget::MappingWidget(MappingWindow* parent) : m_parent(parent)
 {
@@ -90,6 +93,11 @@ QGroupBox* MappingWidget::CreateGroupBox(const QString& name, ControllerEmu::Con
 
   case ControllerEmu::GroupType::Stick:
     indicator = new AnalogStickIndicator(*static_cast<ControllerEmu::ReshapableInput*>(group));
+    break;
+
+  case ControllerEmu::GroupType::IRPassthrough:
+    indicator =
+        new IRPassthroughMappingIndicator(*static_cast<ControllerEmu::IRPassthrough*>(group));
     break;
 
   default:
@@ -158,6 +166,31 @@ QGroupBox* MappingWidget::CreateGroupBox(const QString& name, ControllerEmu::Con
     form_layout->addRow(advanced_button);
     connect(advanced_button, &QPushButton::clicked,
             [this, group] { ShowAdvancedControlGroupDialog(group); });
+  }
+
+  if (group->type == ControllerEmu::GroupType::Cursor)
+  {
+    QPushButton* mouse_button = new QPushButton(tr("Use Mouse Controlled Pointing"));
+    form_layout->insertRow(2, mouse_button);
+
+    using ControllerEmu::Cursor;
+    connect(mouse_button, &QCheckBox::clicked, [this, group = static_cast<Cursor*>(group)] {
+      std::string default_device = g_controller_interface.GetDefaultDeviceString() + ":";
+      const std::string controller_device = GetController()->GetDefaultDevice().ToString() + ":";
+      if (default_device == controller_device)
+      {
+        default_device.clear();
+      }
+      group->SetControlExpression(0, fmt::format("`{}Cursor Y-`", default_device));
+      group->SetControlExpression(1, fmt::format("`{}Cursor Y+`", default_device));
+      group->SetControlExpression(2, fmt::format("`{}Cursor X-`", default_device));
+      group->SetControlExpression(3, fmt::format("`{}Cursor X+`", default_device));
+
+      group->SetRelativeInput(false);
+
+      emit ConfigChanged();
+      GetController()->UpdateReferences(g_controller_interface);
+    });
   }
 
   return group_box;
@@ -303,6 +336,9 @@ MappingWidget::CreateSettingAdvancedMappingButton(ControllerEmu::NumericSettingB
   button->connect(button, &QPushButton::clicked, [this, &setting]() {
     if (setting.IsSimpleValue())
       setting.SetExpressionFromValue();
+
+    // Ensure the UI has the game-controller indicator while editing the expression.
+    ConfigChanged();
 
     IOWindow io(this, GetController(), &setting.GetInputReference(), IOWindow::Type::Input);
     SetQWidgetWindowDecorations(&io);

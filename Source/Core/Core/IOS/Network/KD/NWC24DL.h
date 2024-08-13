@@ -22,10 +22,11 @@ class NWC24Dl final
 public:
   explicit NWC24Dl(std::shared_ptr<FS::FileSystem> fs);
 
-  void ReadDlList();
+  bool ReadDlList();
   void WriteDlList() const;
 
-  s32 CheckNwc24DlList() const;
+  bool CheckNwc24DlList() const;
+  bool IsDisabled() const;
 
   bool DoesEntryExist(u16 entry_index) const;
   bool IsEncrypted(u16 entry_index) const;
@@ -37,7 +38,13 @@ public:
   std::string GetVFFContentName(u16 entry_index, std::optional<u8> subtask_id) const;
   std::string GetDownloadURL(u16 entry_index, std::optional<u8> subtask_id) const;
   std::string GetVFFPath(u16 entry_index) const;
-  WC24PubkMod GetWC24PubkMod(u16 entry_index) const;
+  std::optional<WC24PubkMod> GetWC24PubkMod(u16 entry_index) const;
+
+  u64 GetNextDownloadTime(u16 record_index) const;
+  u64 GetDownloadMargin(u16 entry_index) const;
+  void SetNextDownloadTime(u16 record_index, u64 value, std::optional<u8> subtask_id);
+  u64 GetRetryTime(u16 entry_index) const;
+  u64 GetLastSubtaskDownloadTime(u16 entry_index, u8 subtask_id) const;
 
   u64 GetNextDownloadTime(u16 record_index) const;
   u64 GetDownloadMargin(u16 entry_index) const;
@@ -130,6 +137,7 @@ private:
 
   std::shared_ptr<FS::FileSystem> m_fs;
   DLList m_data;
+  bool m_is_disabled = false;
 };
 }  // namespace NWC24
 }  // namespace IOS::HLE
