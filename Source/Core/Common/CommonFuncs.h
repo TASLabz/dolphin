@@ -37,7 +37,12 @@ __declspec(dllimport) void __stdcall DebugBreak(void);
   {                                                                                                \
     DebugBreak();                                                                                  \
   }
-#endif  // WIN32 ndef
+#endif  // _WIN32
+
+namespace Common
+{
+// strerror_r wrapper to handle XSI and GNU versions.
+const char* StrErrorWrapper(int error, char* buffer, std::size_t length);
 
 namespace Common
 {

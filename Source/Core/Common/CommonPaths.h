@@ -63,6 +63,7 @@
 #define COVERCACHE_DIR "GameCovers"
 #define REDUMPCACHE_DIR "Redump"
 #define SHADERCACHE_DIR "Shaders"
+#define RETROACHIEVEMENTSCACHE_DIR "RetroAchievements"
 #define STATESAVES_DIR "StateSaves"
 #define SCREENSHOTS_DIR "ScreenShots"
 #define LOAD_DIR "Load"
@@ -78,6 +79,9 @@
 #define DUMP_AUDIO_DIR "Audio"
 #define DUMP_DSP_DIR "DSP"
 #define DUMP_SSL_DIR "SSL"
+#define DUMP_DEBUG_DIR "Debug"
+#define DUMP_DEBUG_BRANCHWATCH_DIR "BranchWatch"
+#define DUMP_DEBUG_JITBLOCKS_DIR "JitBlocks"
 #define LOGS_DIR "Logs"
 #define MAIL_LOGS_DIR "Mail"
 #define SHADERS_DIR "Shaders"
@@ -97,6 +101,7 @@
 #define DYNAMICINPUT_DIR "DynamicInputTextures"
 #define GRAPHICSMOD_DIR "GraphicMods"
 #define WIISDSYNC_DIR "WiiSDSync"
+#define ASSEMBLY_DIR "SavedAssembly"
 
 // This one is only used to remove it if it was present
 #define SHADERCACHE_LEGACY_DIR "ShaderCache"
@@ -111,7 +116,6 @@
 #define WIIPAD_CONFIG "WiimoteNew.ini"
 #define GCKEYBOARD_CONFIG "GCKeyNew.ini"
 #define GFX_CONFIG "GFX.ini"
-#define DEBUGGER_CONFIG "Debugger.ini"
 #define LOGGER_CONFIG "Logger.ini"
 #define DUALSHOCKUDPCLIENT_CONFIG "DSUClient.ini"
 #define FREELOOK_CONFIG "FreeLook.ini"

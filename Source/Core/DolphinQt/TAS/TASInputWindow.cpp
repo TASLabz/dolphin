@@ -6,7 +6,9 @@
 #include <cmath>
 #include <utility>
 
+#include <QApplication>
 #include <QCheckBox>
+#include <QEvent>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -14,7 +16,6 @@
 #include <QSlider>
 #include <QSpinBox>
 #include <QVBoxLayout>
-#include <QEvent>
 
 #include "Common/CommonTypes.h"
 
@@ -141,8 +142,8 @@ TASStickBox* TASInputWindow::CreateStickInputs(const QString& text, std::string_
   visual->setMinimumHeight(100);
   visual->setMinimumWidth(100);
 
-  connect(x_value, qOverload<int>(&QSpinBox::valueChanged), visual, &StickWidget::SetX);
-  connect(y_value, qOverload<int>(&QSpinBox::valueChanged), visual, &StickWidget::SetY);
+  connect(x_value, &QSpinBox::valueChanged, visual, &StickWidget::SetX);
+  connect(y_value, &QSpinBox::valueChanged, visual, &StickWidget::SetY);
   connect(visual, &StickWidget::ChangedX, x_value, &QSpinBox::setValue);
   connect(visual, &StickWidget::ChangedY, y_value, &QSpinBox::setValue);
 
@@ -228,7 +229,7 @@ TASSpinBox* TASInputWindow::CreateSliderValuePair(QBoxLayout* layout, int defaul
   value->setValue(default_);
   value->setButtonSymbols(QAbstractSpinBox::NoButtons);
   value->setMaximumWidth(40);
-  connect(value, qOverload<int>(&QSpinBox::valueChanged), [value, max](int i) {
+  connect(value, &QSpinBox::valueChanged, [value, max](int i) {
     if (i > max)
       value->setValue(max);
   });
@@ -238,7 +239,7 @@ TASSpinBox* TASInputWindow::CreateSliderValuePair(QBoxLayout* layout, int defaul
   slider->setFocusPolicy(Qt::ClickFocus);
 
   connect(slider, &QSlider::valueChanged, value, &QSpinBox::setValue);
-  connect(value, qOverload<int>(&QSpinBox::valueChanged), slider, &QSlider::setValue);
+  connect(value, &QSpinBox::valueChanged, slider, &QSlider::setValue);
 
   auto* shortcut = new QShortcut(shortcut_key_sequence, shortcut_widget);
   connect(shortcut, &QShortcut::activated, [value] {
@@ -291,19 +292,15 @@ std::optional<ControlState> TASInputWindow::GetSpinBox(TASSpinBox* spin, int zer
   return (spin->GetValue() - zero) / scale;
 }
 
-bool TASInputWindow::eventFilter(QObject* object, QEvent* event)
+void TASInputWindow::changeEvent(QEvent* const event)
 {
-  if (event->type() == QEvent::WindowActivate)
+  if (event->type() == QEvent::ActivationChange)
   {
-    Host::GetInstance()->SetTASInputFullFocus(true);
-    return true;
-  }
-    
-  else if (event->type() == QEvent::WindowDeactivate)
-  {
-    Host::GetInstance()->SetTASInputFullFocus(false);
-    return true;
-  }
+    const bool active_window_is_tas_input =
+        qobject_cast<TASInputWindow*>(QApplication::activeWindow()) != nullptr;
 
-  return QDialog::eventFilter(object, event);
+    // Switching between TAS Input windows will call SetTASInputFocus(true) twice, but that's fine.
+    Host::GetInstance()->SetTASInputFocus(active_window_is_tas_input);
+  }
+  QDialog::changeEvent(event);
 }

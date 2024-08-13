@@ -32,6 +32,9 @@ enum Hotkey
   HK_CENTER_MOUSE,
   HK_ACTIVATE_CHAT,
   HK_REQUEST_GOLF_CONTROL,
+#ifdef USE_RETRO_ACHIEVEMENTS
+  HK_OPEN_ACHIEVEMENTS,
+#endif  // USE_RETRO_ACHIEVEMENTS
 
   HK_VOLUME_DOWN,
   HK_VOLUME_UP,
@@ -233,6 +236,7 @@ public:
 
   void GetInput(HotkeyStatus* hk, bool ignore_focus);
   std::string GetName() const override;
+  InputConfig* GetConfig() const override;
   ControllerEmu::ControlGroup* GetHotkeyGroup(HotkeyGroup group) const;
   int FindGroupByID(int id) const;
   int GetIndexForGroup(int group, int id) const;

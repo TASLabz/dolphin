@@ -14,6 +14,7 @@ enum class TextureFilteringMode : int;
 enum class OutputResamplingMode : int;
 enum class ColorCorrectionRegion : int;
 enum class TriState : int;
+enum class FrameDumpResolutionType : int;
 
 namespace Config
 {
@@ -28,6 +29,8 @@ extern const Info<int> GFX_ADAPTER;
 
 extern const Info<bool> GFX_WIDESCREEN_HACK;
 extern const Info<AspectMode> GFX_ASPECT_RATIO;
+extern const Info<int> GFX_CUSTOM_ASPECT_RATIO_WIDTH;
+extern const Info<int> GFX_CUSTOM_ASPECT_RATIO_HEIGHT;
 extern const Info<AspectMode> GFX_SUGGESTED_ASPECT_RATIO;
 extern const Info<u32> GFX_WIDESCREEN_HEURISTIC_TRANSITION_THRESHOLD;
 extern const Info<float> GFX_WIDESCREEN_HEURISTIC_ASPECT_RATIO_SLOP;
@@ -65,7 +68,7 @@ extern const Info<std::string> GFX_DUMP_PIXEL_FORMAT;
 extern const Info<std::string> GFX_DUMP_ENCODER;
 extern const Info<std::string> GFX_DUMP_PATH;
 extern const Info<int> GFX_BITRATE_KBPS;
-extern const Info<bool> GFX_INTERNAL_RESOLUTION_FRAME_DUMPS;
+extern const Info<FrameDumpResolutionType> GFX_FRAME_DUMPS_RESOLUTION_TYPE;
 extern const Info<int> GFX_PNG_COMPRESSION_LEVEL;
 extern const Info<bool> GFX_ENABLE_GPU_TEXTURE_DECODING;
 extern const Info<bool> GFX_ENABLE_PIXEL_LIGHTING;

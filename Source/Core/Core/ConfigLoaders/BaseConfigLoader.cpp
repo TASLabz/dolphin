@@ -27,12 +27,13 @@
 #include "Core/IOS/IOS.h"
 #include "Core/IOS/USB/Bluetooth/BTBase.h"
 #include "Core/SysConf.h"
+#include "Core/System.h"
 
 namespace ConfigLoaders
 {
 void SaveToSYSCONF(Config::LayerType layer, std::function<bool(const Config::Location&)> predicate)
 {
-  if (Core::IsRunning())
+  if (Core::IsRunning(Core::System::GetInstance()))
     return;
 
   IOS::HLE::Kernel ios;
@@ -80,7 +81,6 @@ const std::map<Config::System, int> system_to_ini = {
     {Config::System::GCKeyboard, F_GCKEYBOARDCONFIG_IDX},
     {Config::System::GFX, F_GFXCONFIG_IDX},
     {Config::System::Logger, F_LOGGERCONFIG_IDX},
-    {Config::System::Debugger, F_DEBUGGERCONFIG_IDX},
     {Config::System::DualShockUDPClient, F_DUALSHOCKUDPCLIENTCONFIG_IDX},
     {Config::System::FreeLook, F_FREELOOKCONFIG_IDX},
     {Config::System::Achievements, F_RETROACHIEVEMENTSCONFIG_IDX},
@@ -183,7 +183,7 @@ public:
 private:
   void LoadFromSYSCONF(Config::Layer* layer)
   {
-    if (Core::IsRunning())
+    if (Core::IsRunning(Core::System::GetInstance()))
       return;
 
     IOS::HLE::Kernel ios;

@@ -12,6 +12,7 @@ JNIEnv* GetEnvForThread();
 jclass GetStringClass();
 
 jclass GetNativeLibraryClass();
+jmethodID GetDisplayToastMsg();
 jmethodID GetDisplayAlertMsg();
 jmethodID GetUpdateTouchPointer();
 jmethodID GetOnTitleChanged();
@@ -107,5 +108,7 @@ jmethodID GetCoreDeviceConstructor();
 jclass GetCoreDeviceControlClass();
 jfieldID GetCoreDeviceControlPointer();
 jmethodID GetCoreDeviceControlConstructor();
+
+jmethodID GetRunnableRun();
 
 }  // namespace IDCache

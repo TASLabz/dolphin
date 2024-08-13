@@ -458,13 +458,12 @@ void IOWindow::ConnectWidgets()
 
   connect(m_button_box, &QDialogButtonBox::clicked, this, &IOWindow::OnDialogButtonPressed);
   connect(m_devices_combo, &QComboBox::currentTextChanged, this, &IOWindow::OnDeviceChanged);
-  connect(m_scalar_spinbox, qOverload<int>(&QSpinBox::valueChanged), this,
-          &IOWindow::OnRangeChanged);
+  connect(m_scalar_spinbox, &QSpinBox::valueChanged, this, &IOWindow::OnRangeChanged);
 
   connect(m_expression_text, &QPlainTextEdit::textChanged,
           [this] { UpdateExpression(m_expression_text->toPlainText().toStdString()); });
 
-  connect(m_variables_combo, qOverload<int>(&QComboBox::activated), [this](int index) {
+  connect(m_variables_combo, &QComboBox::activated, [this](int index) {
     if (index == 0)
       return;
 
@@ -482,7 +481,7 @@ void IOWindow::ConnectWidgets()
     m_variables_combo->setCurrentIndex(0);
   });
 
-  connect(m_operators_combo, qOverload<int>(&QComboBox::activated), [this](int index) {
+  connect(m_operators_combo, &QComboBox::activated, [this](int index) {
     if (index == 0)
       return;
 
@@ -491,7 +490,7 @@ void IOWindow::ConnectWidgets()
     m_operators_combo->setCurrentIndex(0);
   });
 
-  connect(m_functions_combo, qOverload<int>(&QComboBox::activated), [this](int index) {
+  connect(m_functions_combo, &QComboBox::activated, [this](int index) {
     if (index == 0)
       return;
 
@@ -588,28 +587,25 @@ void IOWindow::UpdateOptionList()
   if (m_selected_device == nullptr)
     return;
 
+  const auto add_rows = [this](auto& container) {
+    int row = 0;
+    for (ciface::Core::Device::Control* control : container)
+    {
+      m_option_list->insertRow(row);
+
+      if (control->IsHidden())
+        m_option_list->hideRow(row);
+
+      m_option_list->setItem(row, 0,
+                             new QTableWidgetItem(QString::fromStdString(control->GetName())));
+      ++row;
+    }
+  };
+
   if (m_reference->IsInput())
-  {
-    int row = 0;
-    for (const auto* input : m_selected_device->Inputs())
-    {
-      m_option_list->insertRow(row);
-      m_option_list->setItem(row, 0,
-                             new QTableWidgetItem(QString::fromStdString(input->GetName())));
-      ++row;
-    }
-  }
+    add_rows(m_selected_device->Inputs());
   else
-  {
-    int row = 0;
-    for (const auto* output : m_selected_device->Outputs())
-    {
-      m_option_list->insertRow(row);
-      m_option_list->setItem(row, 0,
-                             new QTableWidgetItem(QString::fromStdString(output->GetName())));
-      ++row;
-    }
-  }
+    add_rows(m_selected_device->Outputs());
 }
 
 void IOWindow::UpdateDeviceList()

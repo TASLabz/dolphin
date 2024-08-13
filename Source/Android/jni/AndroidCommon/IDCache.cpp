@@ -12,6 +12,7 @@ static JavaVM* s_java_vm;
 static jclass s_string_class;
 
 static jclass s_native_library_class;
+static jmethodID s_display_toast_msg;
 static jmethodID s_display_alert_msg;
 static jmethodID s_update_touch_pointer;
 static jmethodID s_on_title_changed;
@@ -109,6 +110,8 @@ static jclass s_core_device_control_class;
 static jfieldID s_core_device_control_pointer;
 static jmethodID s_core_device_control_constructor;
 
+static jmethodID s_runnable_run;
+
 namespace IDCache
 {
 JNIEnv* GetEnvForThread()
@@ -142,6 +145,11 @@ jclass GetStringClass()
 jclass GetNativeLibraryClass()
 {
   return s_native_library_class;
+}
+
+jmethodID GetDisplayToastMsg()
+{
+  return s_display_toast_msg;
 }
 
 jmethodID GetDisplayAlertMsg()
@@ -504,6 +512,11 @@ jmethodID GetCoreDeviceControlConstructor()
   return s_core_device_control_constructor;
 }
 
+jmethodID GetRunnableRun()
+{
+  return s_runnable_run;
+}
+
 }  // namespace IDCache
 
 extern "C" {
@@ -521,6 +534,8 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
 
   const jclass native_library_class = env->FindClass("org/dolphinemu/dolphinemu/NativeLibrary");
   s_native_library_class = reinterpret_cast<jclass>(env->NewGlobalRef(native_library_class));
+  s_display_toast_msg =
+      env->GetStaticMethodID(s_native_library_class, "displayToastMsg", "(Ljava/lang/String;Z)V");
   s_display_alert_msg = env->GetStaticMethodID(s_native_library_class, "displayAlertMsg",
                                                "(Ljava/lang/String;Ljava/lang/String;ZZZ)Z");
   s_update_touch_pointer =
@@ -708,6 +723,10 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
       env->GetMethodID(core_device_control_class, "<init>",
                        "(Lorg/dolphinemu/dolphinemu/features/input/model/CoreDevice;J)V");
   env->DeleteLocalRef(core_device_control_class);
+
+  const jclass runnable_class = env->FindClass("java/lang/Runnable");
+  s_runnable_run = env->GetMethodID(runnable_class, "run", "()V");
+  env->DeleteLocalRef(runnable_class);
 
   return JNI_VERSION;
 }
