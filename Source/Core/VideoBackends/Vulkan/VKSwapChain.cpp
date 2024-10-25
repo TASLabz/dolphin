@@ -428,8 +428,9 @@ bool SwapChain::SetupSwapChainImages()
                                 images.data());
   ASSERT(res == VK_SUCCESS);
 
-  const TextureConfig texture_config(TextureConfig(
-      m_width, m_height, 1, m_layers, 1, m_texture_format, AbstractTextureFlag_RenderTarget));
+  const TextureConfig texture_config(
+      TextureConfig(m_width, m_height, 1, m_layers, 1, m_texture_format,
+                    AbstractTextureFlag_RenderTarget, AbstractTextureType::Texture_2DArray));
   const VkRenderPass load_render_pass = g_object_cache->GetRenderPass(
       m_surface_format.format, VK_FORMAT_UNDEFINED, 1, VK_ATTACHMENT_LOAD_OP_LOAD);
   const VkRenderPass clear_render_pass = g_object_cache->GetRenderPass(
@@ -496,6 +497,9 @@ VkResult SwapChain::AcquireNextImage()
   VkResult res = vkAcquireNextImageKHR(g_vulkan_context->GetDevice(), m_swap_chain, UINT64_MAX,
                                        g_command_buffer_mgr->GetCurrentCommandBufferSemaphore(),
                                        VK_NULL_HANDLE, &m_current_swap_chain_image_index);
+  m_current_swap_chain_image_is_valid = res >= 0;
+  if (IsCurrentImageValid())
+    g_command_buffer_mgr->MarkCurrentCommandBufferSemaphoreUsed();
   if (res != VK_SUCCESS && res != VK_ERROR_OUT_OF_DATE_KHR && res != VK_SUBOPTIMAL_KHR)
     LOG_VULKAN_ERROR(res, "vkAcquireNextImageKHR failed: ");
 

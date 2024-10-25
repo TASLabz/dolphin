@@ -6,6 +6,7 @@
 
 #include "Common/Logging/Log.h"
 #include "Core/State.h"
+#include "Core/System.h"
 #include "Scripting/Python/Utils/module.h"
 
 namespace PyScripting
@@ -30,7 +31,7 @@ static PyObject* SaveToSlot(PyObject* self, PyObject* args)
     PyErr_SetString(PyExc_ValueError, "slot number must be between 0 and 99");
     return nullptr;
   }
-  State::Save(slot);
+  State::Save(Core::System::GetInstance(), slot);
   Py_RETURN_NONE;
 }
 
@@ -47,7 +48,7 @@ static PyObject* LoadFromSlot(PyObject* self, PyObject* args)
     PyErr_SetString(PyExc_ValueError, "slot number must be between 0 and 99");
     return nullptr;
   }
-  State::Load(slot);
+  State::Load(Core::System::GetInstance(), slot);
   Py_RETURN_NONE;
 }
 
@@ -59,7 +60,7 @@ static PyObject* SaveToFile(PyObject* self, PyObject* args)
   if (!filename_opt.has_value())
     return nullptr;
   const char* filename = std::get<0>(filename_opt.value());
-  State::SaveFile(std::string(filename));
+  State::SaveFile(Core::System::GetInstance(), std::string(filename));
   Py_RETURN_NONE;
 }
 
@@ -71,7 +72,7 @@ static PyObject* LoadFromFile(PyObject* self, PyObject* args)
   if (!filename_opt.has_value())
     return nullptr;
   const char* filename = std::get<0>(filename_opt.value());
-  State::LoadFile(std::string(filename));
+  State::LoadFile(Core::System::GetInstance(), std::string(filename));
   Py_RETURN_NONE;
 }
 
@@ -80,7 +81,7 @@ static PyObject* SaveToBytes(PyObject* self, PyObject* args)
   // If State wasn't static, you'd get the state-manager instance from the module state:
   //SavestateModuleState* state = Py::GetState<SavestateModuleState>();
   std::vector<u8> buffer;
-  State::SaveToBuffer(buffer);
+  State::SaveToBuffer(Core::System::GetInstance(), buffer);
   const u8* data = buffer.data();
   PyObject* pybytes = PyBytes_FromStringAndSize(reinterpret_cast<const char*>(data), buffer.size());
   if (pybytes == nullptr)
@@ -108,7 +109,7 @@ static PyObject* LoadFromBytes(PyObject* self, PyObject* args)
     return nullptr;
   // I don't understand where and why the buffer gets copied and why this is necessary...
   buffer.assign(data, data+length);
-  State::LoadFromBuffer(buffer);
+  State::LoadFromBuffer(Core::System::GetInstance(), buffer);
   Py_RETURN_NONE;
 }
 

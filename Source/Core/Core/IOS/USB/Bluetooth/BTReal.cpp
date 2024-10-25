@@ -103,7 +103,8 @@ std::optional<IPCReply> BluetoothRealDevice::Open(const OpenRequest& request)
 
     const libusb_interface& interface = config_descriptor->interface[INTERFACE];
     const libusb_interface_descriptor& descriptor = interface.altsetting[0];
-    if (IsBluetoothDevice(descriptor) && IsWantedDevice(device_descriptor) && OpenDevice(device))
+    if (IsBluetoothDevice(descriptor) && IsWantedDevice(device_descriptor) &&
+        OpenDevice(device_descriptor, device))
     {
       unsigned char manufacturer[50] = {}, product[50] = {}, serial_number[50] = {};
       const int manufacturer_ret = libusb_get_string_descriptor_ascii(
@@ -177,7 +178,7 @@ std::optional<IPCReply> BluetoothRealDevice::Open(const OpenRequest& request)
           "The emulated console will now stop.",
           m_last_open_error);
     }
-    Core::QueueHostJob(Core::Stop);
+    Core::QueueHostJob(&Core::Stop);
     return IPCReply(IPC_ENOENT);
   }
 
@@ -637,14 +638,16 @@ void BluetoothRealDevice::SaveLinkKeys()
   Config::SetBase(Config::MAIN_BLUETOOTH_PASSTHROUGH_LINK_KEYS, config_string);
 }
 
-bool BluetoothRealDevice::OpenDevice(libusb_device* device)
+bool BluetoothRealDevice::OpenDevice(const libusb_device_descriptor& device_descriptor,
+                                     libusb_device* device)
 {
   m_device = libusb_ref_device(device);
   const int ret = libusb_open(m_device, &m_handle);
   if (ret != LIBUSB_SUCCESS)
   {
-    m_last_open_error =
-        Common::FmtFormatT("Failed to open Bluetooth device: {0}", LibusbUtils::ErrorWrap(ret));
+    m_last_open_error = Common::FmtFormatT("Failed to open Bluetooth device {:04x}:{:04x}: {}",
+                                           device_descriptor.idVendor, device_descriptor.idProduct,
+                                           LibusbUtils::ErrorWrap(ret));
     return false;
   }
 
@@ -678,7 +681,7 @@ bool BluetoothRealDevice::OpenDevice(libusb_device* device)
 void BluetoothRealDevice::HandleCtrlTransfer(libusb_transfer* tr)
 {
   std::lock_guard lk(m_transfers_mutex);
-  if (!m_current_transfers.count(tr))
+  if (!m_current_transfers.contains(tr))
     return;
 
   if (tr->status != LIBUSB_TRANSFER_COMPLETED && tr->status != LIBUSB_TRANSFER_NO_DEVICE)
@@ -706,7 +709,7 @@ void BluetoothRealDevice::HandleCtrlTransfer(libusb_transfer* tr)
 void BluetoothRealDevice::HandleBulkOrIntrTransfer(libusb_transfer* tr)
 {
   std::lock_guard lk(m_transfers_mutex);
-  if (!m_current_transfers.count(tr))
+  if (!m_current_transfers.contains(tr))
     return;
 
   if (tr->status != LIBUSB_TRANSFER_COMPLETED && tr->status != LIBUSB_TRANSFER_TIMED_OUT &&

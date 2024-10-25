@@ -345,7 +345,8 @@ void ClearUnusedPixelShaderUidBits(APIType api_type, const ShaderHostConfig& hos
 }
 
 void WritePixelShaderCommonHeader(ShaderCode& out, APIType api_type,
-                                  const ShaderHostConfig& host_config, bool bounding_box)
+                                  const ShaderHostConfig& host_config, bool bounding_box,
+                                  const CustomPixelShaderContents& custom_details)
 {
   // dot product for integer vectors
   out.Write("int idot(int3 x, int3 y)\n"
@@ -426,6 +427,14 @@ void WritePixelShaderCommonHeader(ShaderCode& out, APIType api_type,
     out.Write("}};\n");
   }
 
+  if (!custom_details.shaders.empty() &&
+      !custom_details.shaders.back().material_uniform_block.empty())
+  {
+    out.Write("UBO_BINDING(std140, 3) uniform CustomShaderBlock {{\n");
+    out.Write("{}", custom_details.shaders.back().material_uniform_block);
+    out.Write("}} custom_uniforms;\n");
+  }
+
   if (bounding_box)
   {
     out.Write("SSBO_BINDING(0) coherent buffer BBox {{\n"
@@ -476,7 +485,7 @@ void UpdateBoundingBox(float2 rawpos) {{
   int2 pos_tl = pos & ~1;  // round down to even
   int2 pos_br = pos | 1;   // round up to odd
 
-#ifdef SUPPORTS_SUBGROUP_REDUCTION
+#if defined(SUPPORTS_SUBGROUP_REDUCTION) && !defined(BROKEN_SUBGROUP_WITH_DISCARD)
   if (!IS_HELPER_INVOCATION)
   {{
     SUBGROUP_MIN(pos_tl);
@@ -830,7 +839,8 @@ void WriteCustomShaderStructImpl(ShaderCode* out, u32 num_stages, bool per_pixel
                texcoord);
   }
 
-  GenerateCustomLightingImplementation(out, uid_data->lighting, "colors_");
+  if (per_pixel_lighting)
+    GenerateCustomLightingImplementation(out, uid_data->lighting, "colors_");
 
   for (u32 i = 0; i < 16; i++)
   {
@@ -907,7 +917,7 @@ ShaderCode GeneratePixelShaderCode(APIType api_type, const ShaderHostConfig& hos
   // Stuff that is shared between ubershaders and pixelgen.
   WriteBitfieldExtractHeader(out, api_type, host_config);
 
-  WritePixelShaderCommonHeader(out, api_type, host_config, uid_data->bounding_box);
+  WritePixelShaderCommonHeader(out, api_type, host_config, uid_data->bounding_box, custom_details);
 
   // Custom shader details
   WriteCustomShaderStructDef(&out, uid_data->genMode_numtexgens);
@@ -990,10 +1000,15 @@ ShaderCode GeneratePixelShaderCode(APIType api_type, const ShaderHostConfig& hos
   else
 #endif
   {
-    out.Write("{} {} {} {};\n", "FRAGMENT_OUTPUT_LOCATION_INDEXED(0, 0)",
-              use_framebuffer_fetch ? "FRAGMENT_INOUT" : "out",
-              uid_data->uint_output ? "uvec4" : "vec4",
-              use_framebuffer_fetch ? "real_ocol0" : "ocol0");
+    if (use_framebuffer_fetch)
+    {
+      out.Write("FRAGMENT_OUTPUT_LOCATION(0) FRAGMENT_INOUT vec4 real_ocol0;\n");
+    }
+    else
+    {
+      out.Write("FRAGMENT_OUTPUT_LOCATION_INDEXED(0, 0) out {} ocol0;\n",
+                uid_data->uint_output ? "uvec4" : "vec4");
+    }
 
     if (!uid_data->no_dual_src)
     {
@@ -1300,6 +1315,23 @@ ShaderCode GeneratePixelShaderCode(APIType api_type, const ShaderHostConfig& hos
 
   WriteFog(out, uid_data);
 
+  for (std::size_t i = 0; i < custom_details.shaders.size(); i++)
+  {
+    const auto& shader_details = custom_details.shaders[i];
+
+    if (!shader_details.custom_shader.empty())
+    {
+      out.Write("\t{{\n");
+      out.Write("\t\tcustom_data.final_color = float4(prev.r / 255.0, prev.g / 255.0, prev.b "
+                "/ 255.0, prev.a / 255.0);\n");
+      out.Write("\t\tCustomShaderOutput custom_output = {}_{}(custom_data);\n",
+                CUSTOM_PIXELSHADER_COLOR_FUNC, i);
+      out.Write("\t\tprev = int4(custom_output.main_rt.r * 255, custom_output.main_rt.g * 255, "
+                "custom_output.main_rt.b * 255, custom_output.main_rt.a * 255);\n");
+      out.Write("\t}}\n\n");
+    }
+  }
+
   if (uid_data->logic_op_enable)
     WriteLogicOp(out, uid_data);
   else if (uid_data->emulate_logic_op_with_blend)
@@ -1309,19 +1341,6 @@ ShaderCode GeneratePixelShaderCode(APIType api_type, const ShaderHostConfig& hos
   // If using shader blend, we still use the separate alpha
   const bool use_dual_source = !uid_data->no_dual_src || uid_data->blend_enable;
   WriteColor(out, api_type, uid_data, use_dual_source);
-
-  for (std::size_t i = 0; i < custom_details.shaders.size(); i++)
-  {
-    const auto& shader_details = custom_details.shaders[i];
-
-    if (!shader_details.custom_shader.empty())
-    {
-      out.Write("\t{{\n");
-      out.Write("\t\tcustom_data.final_color = ocol0;\n");
-      out.Write("\t\tocol0.xyz = {}_{}(custom_data).xyz;\n", CUSTOM_PIXELSHADER_COLOR_FUNC, i);
-      out.Write("\t}}\n\n");
-    }
-  }
 
   if (uid_data->blend_enable)
     WriteBlend(out, uid_data);

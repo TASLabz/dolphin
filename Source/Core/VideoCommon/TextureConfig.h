@@ -42,18 +42,24 @@ enum AbstractTextureFlag : u32
   AbstractTextureFlag_CubeMap = (1 << 2),       // Texture is used as a cube map.
 };
 
+enum class AbstractTextureType
+{
+  Texture_2DArray,  // Used as a 2D texture array
+  Texture_2D,       // Used as a normal 2D texture
+  Texture_CubeMap,  // Used as a cube map texture
+};
+
 struct TextureConfig
 {
   constexpr TextureConfig() = default;
   constexpr TextureConfig(u32 width_, u32 height_, u32 levels_, u32 layers_, u32 samples_,
-                          AbstractTextureFormat format_, u32 flags_)
+                          AbstractTextureFormat format_, u32 flags_, AbstractTextureType type_)
       : width(width_), height(height_), levels(levels_), layers(layers_), samples(samples_),
-        format(format_), flags(flags_)
+        format(format_), flags(flags_), type(type_)
   {
   }
 
   bool operator==(const TextureConfig& o) const;
-  bool operator!=(const TextureConfig& o) const;
   MathUtil::Rectangle<int> GetRect() const;
   MathUtil::Rectangle<int> GetMipRect(u32 level) const;
   size_t GetStride() const;
@@ -71,12 +77,11 @@ struct TextureConfig
   u32 samples = 1;
   AbstractTextureFormat format = AbstractTextureFormat::RGBA8;
   u32 flags = 0;
+  AbstractTextureType type = AbstractTextureType::Texture_2DArray;
 };
 
-namespace std
-{
 template <>
-struct hash<TextureConfig>
+struct std::hash<TextureConfig>
 {
   using argument_type = TextureConfig;
   using result_type = size_t;
@@ -89,4 +94,3 @@ struct hash<TextureConfig>
     return std::hash<u64>{}(id);
   }
 };
-}  // namespace std

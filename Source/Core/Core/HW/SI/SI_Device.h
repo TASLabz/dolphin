@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include <iosfwd>
 #include <memory>
 #include "Common/CommonTypes.h"
 
@@ -11,6 +10,10 @@ class PointerWrap;
 namespace Core
 {
 class System;
+}
+namespace SystemTimers
+{
+class SystemTimersManager;
 }
 
 namespace SerialInterface
@@ -103,9 +106,6 @@ enum SIDevices : int
   SIDEVICE_COUNT,
 };
 
-std::ostream& operator<<(std::ostream& stream, SIDevices device);
-std::istream& operator>>(std::istream& stream, SIDevices& device);
-
 class ISIDevice
 {
 public:
@@ -138,7 +138,8 @@ protected:
   SIDevices m_device_type;
 };
 
-int SIDevice_GetGBATransferTime(EBufferCommands cmd);
+int SIDevice_GetGBATransferTime(const SystemTimers::SystemTimersManager& timers,
+                                EBufferCommands cmd);
 bool SIDevice_IsGCController(SIDevices type);
 
 std::unique_ptr<ISIDevice> SIDevice_Create(Core::System& system, SIDevices device, int port_number);

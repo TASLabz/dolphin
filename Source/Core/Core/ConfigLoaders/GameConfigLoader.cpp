@@ -153,10 +153,9 @@ static std::pair<std::string, std::string> GetINILocationFromConfig(const Locati
     return it->first;
 
   static const INIToSectionMap& ini_to_section = GetINIToSectionMap();
-  const auto it2 =
-      std::find_if(ini_to_section.begin(), ini_to_section.end(), [&location](const auto& entry) {
-        return entry.second.first == location.system && entry.second.second == location.section;
-      });
+  const auto it2 = std::ranges::find_if(ini_to_section, [&location](const auto& entry) {
+    return entry.second.first == location.system && entry.second.second == location.section;
+  });
   if (it2 != ini_to_section.end())
     return {it2->first, location.key};
 
@@ -208,8 +207,9 @@ private:
     if (m_id == "00000000")
       return;
 
-    const std::array<std::tuple<std::string, std::string, Config::System>, 2> profile_info = {{
+    const std::array<std::tuple<std::string, std::string, Config::System>, 3> profile_info = {{
         std::make_tuple("Pad", "GCPad", Config::System::GCPad),
+        std::make_tuple("GBA", "GBA", Config::System::GCPad),
         std::make_tuple("Wiimote", "Wiimote", Config::System::WiiPad),
     }};
 

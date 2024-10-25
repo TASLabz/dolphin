@@ -39,6 +39,10 @@ EnhancementsWidget::EnhancementsWidget(GraphicsWindow* parent) : m_block_save(fa
   AddDescriptions();
   connect(parent, &GraphicsWindow::BackendChanged,
           [this](const QString& backend) { LoadSettings(); });
+  connect(parent, &GraphicsWindow::UseFastTextureSamplingChanged, this,
+          &EnhancementsWidget::LoadSettings);
+  connect(parent, &GraphicsWindow::UseGPUTextureDecodingChanged, this,
+          &EnhancementsWidget::LoadSettings);
 }
 
 constexpr int TEXTURE_FILTERING_DEFAULT = 0;
@@ -62,14 +66,19 @@ void EnhancementsWidget::CreateWidgets()
   auto* enhancements_layout = new QGridLayout();
   enhancements_box->setLayout(enhancements_layout);
 
-  // Only display the first 8 scales, which most users will not go beyond.
-  QStringList resolution_options{
-      tr("Auto (Multiple of 640x528)"),      tr("Native (640x528)"),
-      tr("2x Native (1280x1056) for 720p"),  tr("3x Native (1920x1584) for 1080p"),
-      tr("4x Native (2560x2112) for 1440p"), tr("5x Native (3200x2640)"),
-      tr("6x Native (3840x3168) for 4K"),    tr("7x Native (4480x3696)"),
-      tr("8x Native (5120x4224) for 5K")};
-  const int visible_resolution_option_count = static_cast<int>(resolution_options.size());
+  QStringList resolution_options{tr("Auto (Multiple of 640x528)"), tr("Native (640x528)")};
+  // From 2x up.
+  // To calculate the suggested internal resolution scale for each common output resolution,
+  // we find the minimum multiplier that results in an equal or greater resolution than the
+  // output one, on both width and height.
+  // Note that often games don't render to the full resolution, but have some black bars
+  // on the edges; this is not accounted for in the calculations.
+  const QStringList resolution_extra_options{
+      tr("720p"),         tr("1080p"),        tr("1440p"), QStringLiteral(""),
+      tr("4K"),           QStringLiteral(""), tr("5K"),    QStringLiteral(""),
+      QStringLiteral(""), QStringLiteral(""), tr("8K")};
+  const int visible_resolution_option_count = static_cast<int>(resolution_options.size()) +
+                                              static_cast<int>(resolution_extra_options.size());
 
   // If the current scale is greater than the max scale in the ini, add sufficient options so that
   // when the settings are saved we don't lose the user-modified value from the ini.
@@ -77,10 +86,22 @@ void EnhancementsWidget::CreateWidgets()
       std::max(Config::Get(Config::GFX_EFB_SCALE), Config::Get(Config::GFX_MAX_EFB_SCALE));
   for (int scale = static_cast<int>(resolution_options.size()); scale <= max_efb_scale; scale++)
   {
-    resolution_options.append(tr("%1x Native (%2x%3)")
-                                  .arg(QString::number(scale),
-                                       QString::number(static_cast<int>(EFB_WIDTH) * scale),
-                                       QString::number(static_cast<int>(EFB_HEIGHT) * scale)));
+    const QString scale_text = QString::number(scale);
+    const QString width_text = QString::number(static_cast<int>(EFB_WIDTH) * scale);
+    const QString height_text = QString::number(static_cast<int>(EFB_HEIGHT) * scale);
+    const int extra_index = resolution_options.size() - 2;
+    const QString extra_text = resolution_extra_options.size() > extra_index ?
+                                   resolution_extra_options[extra_index] :
+                                   QStringLiteral("");
+    if (extra_text.isEmpty())
+    {
+      resolution_options.append(tr("%1x Native (%2x%3)").arg(scale_text, width_text, height_text));
+    }
+    else
+    {
+      resolution_options.append(
+          tr("%1x Native (%2x%3) for %4").arg(scale_text, width_text, height_text, extra_text));
+    }
   }
 
   m_ir_combo = new ConfigChoice(resolution_options, Config::GFX_EFB_SCALE);
@@ -192,7 +213,11 @@ void EnhancementsWidget::CreateWidgets()
   m_3d_depth = new ConfigSlider(0, Config::GFX_STEREO_DEPTH_MAXIMUM, Config::GFX_STEREO_DEPTH);
   m_3d_convergence = new ConfigSlider(0, Config::GFX_STEREO_CONVERGENCE_MAXIMUM,
                                       Config::GFX_STEREO_CONVERGENCE, 100);
+
   m_3d_swap_eyes = new ConfigBool(tr("Swap Eyes"), Config::GFX_STEREO_SWAP_EYES);
+
+  m_3d_per_eye_resolution =
+      new ConfigBool(tr("Use Full Resolution Per Eye"), Config::GFX_STEREO_PER_EYE_RESOLUTION_FULL);
 
   stereoscopy_layout->addWidget(new QLabel(tr("Stereoscopic 3D Mode:")), 0, 0);
   stereoscopy_layout->addWidget(m_3d_mode, 0, 1);
@@ -201,6 +226,11 @@ void EnhancementsWidget::CreateWidgets()
   stereoscopy_layout->addWidget(new QLabel(tr("Convergence:")), 2, 0);
   stereoscopy_layout->addWidget(m_3d_convergence, 2, 1);
   stereoscopy_layout->addWidget(m_3d_swap_eyes, 3, 0);
+  stereoscopy_layout->addWidget(m_3d_per_eye_resolution, 4, 0);
+
+  auto current_stereo_mode = Config::Get(Config::GFX_STEREO_MODE);
+  if (current_stereo_mode != StereoMode::SBS && current_stereo_mode != StereoMode::TAB)
+    m_3d_per_eye_resolution->hide();
 
   main_layout->addWidget(enhancements_box);
   main_layout->addWidget(stereoscopy_box);
@@ -211,43 +241,55 @@ void EnhancementsWidget::CreateWidgets()
 
 void EnhancementsWidget::ConnectWidgets()
 {
-  connect(m_aa_combo, qOverload<int>(&QComboBox::currentIndexChanged),
+  connect(m_aa_combo, &QComboBox::currentIndexChanged, [this](int) { SaveSettings(); });
+  connect(m_texture_filtering_combo, &QComboBox::currentIndexChanged,
           [this](int) { SaveSettings(); });
-  connect(m_texture_filtering_combo, qOverload<int>(&QComboBox::currentIndexChanged),
+  connect(m_output_resampling_combo, &QComboBox::currentIndexChanged,
           [this](int) { SaveSettings(); });
-  connect(m_output_resampling_combo, qOverload<int>(&QComboBox::currentIndexChanged),
-          [this](int) { SaveSettings(); });
-  connect(m_pp_effect, qOverload<int>(&QComboBox::currentIndexChanged),
-          [this](int) { SaveSettings(); });
-  connect(m_3d_mode, qOverload<int>(&QComboBox::currentIndexChanged), [this] {
+  connect(m_pp_effect, &QComboBox::currentIndexChanged, [this](int) { SaveSettings(); });
+  connect(m_3d_mode, &QComboBox::currentIndexChanged, [this] {
     m_block_save = true;
     m_configure_color_correction->setEnabled(g_Config.backend_info.bSupportsPostProcessing);
-    LoadPPShaders();
-    m_block_save = false;
 
+    auto current_stereo_mode = Config::Get(Config::GFX_STEREO_MODE);
+    LoadPPShaders(current_stereo_mode);
+
+    if (current_stereo_mode == StereoMode::SBS || current_stereo_mode == StereoMode::TAB)
+      m_3d_per_eye_resolution->show();
+    else
+      m_3d_per_eye_resolution->hide();
+
+    m_block_save = false;
     SaveSettings();
   });
   connect(m_configure_color_correction, &QPushButton::clicked, this,
           &EnhancementsWidget::ConfigureColorCorrection);
   connect(m_configure_pp_effect, &QPushButton::clicked, this,
           &EnhancementsWidget::ConfigurePostProcessingShader);
+
+  connect(&Settings::Instance(), &Settings::ConfigChanged, this, [this] {
+    const QSignalBlocker blocker(this);
+    m_block_save = true;
+    LoadPPShaders(Config::Get(Config::GFX_STEREO_MODE));
+    m_block_save = false;
+  });
 }
 
-void EnhancementsWidget::LoadPPShaders()
+void EnhancementsWidget::LoadPPShaders(StereoMode stereo_mode)
 {
   std::vector<std::string> shaders = VideoCommon::PostProcessing::GetShaderList();
-  if (g_Config.stereo_mode == StereoMode::Anaglyph)
+  if (stereo_mode == StereoMode::Anaglyph)
   {
     shaders = VideoCommon::PostProcessing::GetAnaglyphShaderList();
   }
-  else if (g_Config.stereo_mode == StereoMode::Passive)
+  else if (stereo_mode == StereoMode::Passive)
   {
     shaders = VideoCommon::PostProcessing::GetPassiveShaderList();
   }
 
   m_pp_effect->clear();
 
-  if (g_Config.stereo_mode != StereoMode::Anaglyph && g_Config.stereo_mode != StereoMode::Passive)
+  if (stereo_mode != StereoMode::Anaglyph && stereo_mode != StereoMode::Passive)
     m_pp_effect->addItem(tr("(off)"));
 
   auto selected_shader = Config::Get(Config::GFX_ENHANCE_POST_SHADER);
@@ -264,10 +306,23 @@ void EnhancementsWidget::LoadPPShaders()
     }
   }
 
-  if (g_Config.stereo_mode == StereoMode::Anaglyph && !found)
-    m_pp_effect->setCurrentIndex(m_pp_effect->findText(QStringLiteral("dubois")));
-  else if (g_Config.stereo_mode == StereoMode::Passive && !found)
-    m_pp_effect->setCurrentIndex(m_pp_effect->findText(QStringLiteral("horizontal")));
+  if (!found)
+  {
+    if (stereo_mode == StereoMode::Anaglyph)
+      selected_shader = "dubois";
+    else if (stereo_mode == StereoMode::Passive)
+      selected_shader = "horizontal";
+    else
+      selected_shader = "";
+
+    int index = m_pp_effect->findText(QString::fromStdString(selected_shader));
+    if (index >= 0)
+      m_pp_effect->setCurrentIndex(index);
+    else
+      m_pp_effect->setCurrentIndex(0);
+
+    Config::SetBaseOrCurrent(Config::GFX_ENHANCE_POST_SHADER, selected_shader);
+  }
 
   const bool supports_postprocessing = g_Config.backend_info.bSupportsPostProcessing;
   m_pp_effect->setEnabled(supports_postprocessing);
@@ -278,7 +333,7 @@ void EnhancementsWidget::LoadPPShaders()
                                   .arg(tr(g_video_backend->GetDisplayName().c_str())));
 
   VideoCommon::PostProcessingConfiguration pp_shader;
-  if (selected_shader != "(off)" && supports_postprocessing)
+  if (selected_shader != "" && supports_postprocessing)
   {
     pp_shader.LoadShader(selected_shader);
     m_configure_pp_effect->setEnabled(pp_shader.HasOptions());
@@ -292,6 +347,9 @@ void EnhancementsWidget::LoadPPShaders()
 void EnhancementsWidget::LoadSettings()
 {
   m_block_save = true;
+  m_texture_filtering_combo->setEnabled(Config::Get(Config::GFX_HACK_FAST_TEXTURE_SAMPLING));
+  m_arbitrary_mipmap_detection->setEnabled(!Config::Get(Config::GFX_ENABLE_GPU_TEXTURE_DECODING));
+
   // Anti-Aliasing
 
   const u32 aa_selection = Config::Get(Config::GFX_MSAA);
@@ -350,7 +408,8 @@ void EnhancementsWidget::LoadSettings()
   // Resampling
   const OutputResamplingMode output_resampling_mode =
       Config::Get(Config::GFX_ENHANCE_OUTPUT_RESAMPLING);
-  m_output_resampling_combo->setCurrentIndex(static_cast<int>(output_resampling_mode));
+  m_output_resampling_combo->setCurrentIndex(
+      m_output_resampling_combo->findData(static_cast<int>(output_resampling_mode)));
 
   m_output_resampling_combo->setEnabled(g_Config.backend_info.bSupportsPostProcessing);
 
@@ -358,7 +417,7 @@ void EnhancementsWidget::LoadSettings()
   m_configure_color_correction->setEnabled(g_Config.backend_info.bSupportsPostProcessing);
 
   // Post Processing Shader
-  LoadPPShaders();
+  LoadPPShaders(Config::Get(Config::GFX_STEREO_MODE));
 
   // Stereoscopy
   const bool supports_stereoscopy = g_Config.backend_info.bSupportsGeometryShaders;
@@ -451,11 +510,11 @@ void EnhancementsWidget::SaveSettings()
   const bool passive = g_Config.stereo_mode == StereoMode::Passive;
   Config::SetBaseOrCurrent(Config::GFX_ENHANCE_POST_SHADER,
                            (!anaglyph && !passive && m_pp_effect->currentIndex() == 0) ?
-                               "(off)" :
+                               "" :
                                m_pp_effect->currentText().toStdString());
 
   VideoCommon::PostProcessingConfiguration pp_shader;
-  if (Config::Get(Config::GFX_ENHANCE_POST_SHADER) != "(off)")
+  if (Config::Get(Config::GFX_ENHANCE_POST_SHADER) != "")
   {
     pp_shader.LoadShader(Config::Get(Config::GFX_ENHANCE_POST_SHADER));
     m_configure_pp_effect->setEnabled(pp_shader.HasOptions());
@@ -487,8 +546,9 @@ void EnhancementsWidget::AddDescriptions()
       "Adjust the texture filtering. Anisotropic filtering enhances the visual quality of textures "
       "that are at oblique viewing angles. Force Nearest and Force Linear override the texture "
       "scaling filter selected by the game.<br><br>Any option except 'Default' will alter the look "
-      "of the game's textures and might cause issues in a small number of "
-      "games.<br><br><dolphin_emphasis>If unsure, select 'Default'.</dolphin_emphasis>");
+      "of the game's textures and might cause issues in a small number of games.<br><br>This "
+      "setting is disabled when Manual Texture Sampling is enabled.<br><br>"
+      "<dolphin_emphasis>If unsure, select 'Default'.</dolphin_emphasis>");
   static const char TR_OUTPUT_RESAMPLING_DESCRIPTION[] =
       QT_TR_NOOP("Affects how the game output is scaled to the window resolution."
                  "<br>The performance mostly depends on the number of samples each method uses."
@@ -504,20 +564,20 @@ void EnhancementsWidget::AddDescriptions()
 
                  "<br><br><b>Bicubic</b> - [16 samples]"
                  "<br>Gamma corrected cubic interpolation between pixels."
-                 "<br>Good when rescaling between close resolutions. i.e 1080p and 1440p."
+                 "<br>Good when rescaling between close resolutions, e.g. 1080p and 1440p."
                  "<br>Comes in various flavors:"
                  "<br><b>B-Spline</b>: Blurry, but avoids all lobing artifacts"
                  "<br><b>Mitchell-Netravali</b>: Good middle ground between blurry and lobing"
                  "<br><b>Catmull-Rom</b>: Sharper, but can cause lobing artifacts"
 
                  "<br><br><b>Sharp Bilinear</b> - [1-4 samples]"
-                 "<br>Similarly to \"Nearest Neighbor\", it maintains a sharp look,"
+                 "<br>Similar to \"Nearest Neighbor\", it maintains a sharp look,"
                  "<br>but also does some blending to avoid shimmering."
                  "<br>Works best with 2D games at low resolutions."
 
                  "<br><br><b>Area Sampling</b> - [up to 324 samples]"
-                 "<br>Weights pixels by the percentage of area they occupy. Gamma corrected."
-                 "<br>Best for down scaling by more than 2x."
+                 "<br>Weighs pixels by the percentage of area they occupy. Gamma corrected."
+                 "<br>Best for downscaling by more than 2x."
 
                  "<br><br><dolphin_emphasis>If unsure, select 'Default'.</dolphin_emphasis>");
   static const char TR_COLOR_CORRECTION_DESCRIPTION[] =
@@ -538,12 +598,11 @@ void EnhancementsWidget::AddDescriptions()
       "causes slowdowns or graphical issues.<br><br><dolphin_emphasis>If unsure, leave "
       "this unchecked.</dolphin_emphasis>");
   static const char TR_WIDESCREEN_HACK_DESCRIPTION[] = QT_TR_NOOP(
-      "Forces the game to output graphics for any aspect ratio. Use with \"Aspect Ratio\" set to "
-      "\"Force 16:9\" to force 4:3-only games to run at 16:9.<br><br>Rarely produces good "
-      "results and "
-      "often partially breaks graphics and game UIs. Unnecessary (and detrimental) if using any "
-      "AR/Gecko-code widescreen patches.<br><br><dolphin_emphasis>If unsure, leave "
-      "this unchecked.</dolphin_emphasis>");
+      "Forces the game to output graphics at any aspect ratio by expanding the view frustum "
+      "without stretching the image.<br>This is a hack, and its results will vary widely game "
+      "to game (it often causes the UI to stretch).<br>"
+      "Game-specific AR/Gecko-code aspect ratio patches are preferable over this if available."
+      "<br><br><dolphin_emphasis>If unsure, leave this unchecked.</dolphin_emphasis>");
   static const char TR_REMOVE_FOG_DESCRIPTION[] =
       QT_TR_NOOP("Makes distant objects more visible by removing fog, thus increasing the overall "
                  "detail.<br><br>Disabling fog will break some games which rely on proper fog "
@@ -566,6 +625,10 @@ void EnhancementsWidget::AddDescriptions()
   static const char TR_3D_SWAP_EYES_DESCRIPTION[] = QT_TR_NOOP(
       "Swaps the left and right eye. Most useful in side-by-side stereoscopy "
       "mode.<br><br><dolphin_emphasis>If unsure, leave this unchecked.</dolphin_emphasis>");
+  static const char TR_3D_PER_EYE_RESOLUTION_DESCRIPTION[] =
+      QT_TR_NOOP("Whether each eye gets full or half image resolution when using side-by-side "
+                 "or above-and-below 3D."
+                 "<br><br><dolphin_emphasis>If unsure, leave this unchecked.</dolphin_emphasis>");
   static const char TR_FORCE_24BIT_DESCRIPTION[] = QT_TR_NOOP(
       "Forces the game to render the RGB color channels in 24-bit, thereby increasing "
       "quality by reducing color banding.<br><br>Has no impact on performance and causes "
@@ -582,9 +645,9 @@ void EnhancementsWidget::AddDescriptions()
       "effects.<br><br>May have false positives that result in blurry textures at increased "
       "internal "
       "resolution, such as in games that use very low resolution mipmaps. Disabling this can also "
-      "reduce stutter in games that frequently load new textures. This feature is not compatible "
-      "with GPU Texture Decoding.<br><br><dolphin_emphasis>If unsure, leave this "
-      "checked.</dolphin_emphasis>");
+      "reduce stutter in games that frequently load new textures.<br><br>This setting is disabled "
+      "when GPU Texture Decoding is enabled.<br><br><dolphin_emphasis>If unsure, leave this "
+      "unchecked.</dolphin_emphasis>");
   static const char TR_HDR_DESCRIPTION[] = QT_TR_NOOP(
       "Enables scRGB HDR output (if supported by your graphics backend and monitor)."
       " Fullscreen might be required."
@@ -635,6 +698,8 @@ void EnhancementsWidget::AddDescriptions()
 
   m_3d_convergence->SetTitle(tr("Convergence"));
   m_3d_convergence->SetDescription(tr(TR_3D_CONVERGENCE_DESCRIPTION));
+
+  m_3d_per_eye_resolution->SetDescription(tr(TR_3D_PER_EYE_RESOLUTION_DESCRIPTION));
 
   m_3d_swap_eyes->SetDescription(tr(TR_3D_SWAP_EYES_DESCRIPTION));
 }

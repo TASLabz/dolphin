@@ -6,6 +6,7 @@
 #include <climits>
 
 #include "Common/CommonTypes.h"
+#include "Common/EnumUtils.h"
 #include "Common/JitRegister.h"
 #include "Common/x64ABI.h"
 #include "Common/x64Emitter.h"
@@ -20,10 +21,6 @@
 
 using namespace Gen;
 
-// These need to be next of each other so that the assembly
-// code can compare them easily.
-static_assert(offsetof(JitBlockData, effectiveAddress) + 4 == offsetof(JitBlockData, msrBits));
-
 Jit64AsmRoutineManager::Jit64AsmRoutineManager(Jit64& jit) : CommonAsmRoutines(jit)
 {
 }
@@ -32,7 +29,15 @@ void Jit64AsmRoutineManager::Init()
 {
   m_const_pool.Init(AllocChildCodeSpace(4096), 4096);
   Generate();
-  WriteProtect();
+  WriteProtect(true);
+}
+
+void Jit64AsmRoutineManager::Regenerate()
+{
+  UnWriteProtect(false);
+  ResetCodePtr();
+  Generate();
+  WriteProtect(true);
 }
 
 // PLAN: no more block numbers - crazy opcodes just contain offset within
@@ -41,7 +46,7 @@ void Jit64AsmRoutineManager::Init()
 
 void Jit64AsmRoutineManager::Generate()
 {
-  const bool enable_debugging = Config::Get(Config::MAIN_ENABLE_DEBUGGING);
+  const bool enable_debugging = Config::IsDebuggingEnabled();
 
   enter_code = AlignCode16();
   // We need to own the beginning of RSP, so we do an extra stack adjustment
@@ -101,15 +106,8 @@ void Jit64AsmRoutineManager::Generate()
   if (enable_debugging)
   {
     MOV(64, R(RSCRATCH), ImmPtr(system.GetCPU().GetStatePtr()));
-    TEST(32, MatR(RSCRATCH), Imm32(static_cast<u32>(CPU::State::Stepping)));
-    FixupBranch notStepping = J_CC(CC_Z);
-    // Causes duplicate hits with jit.cpp
-    // ABI_PushRegistersAndAdjustStack({}, 0);
-    // ABI_CallFunction(PowerPC::CheckBreakPoints);
-    // ABI_PopRegistersAndAdjustStack({}, 0);
-    MOV(64, R(RSCRATCH), ImmPtr(system.GetCPU().GetStatePtr()));
-    TEST(32, MatR(RSCRATCH), Imm32(0xFFFFFFFF));
-    dbg_exit = J_CC(CC_NZ, Jump::Near);
+    CMP(32, MatR(RSCRATCH), Imm32(Common::ToUnderlying(CPU::State::Running)));
+    dbg_exit = J_CC(CC_NE, Jump::Near);
   }
 
   SetJumpTarget(skipToRealDispatch);
@@ -122,19 +120,17 @@ void Jit64AsmRoutineManager::Generate()
   {
     if (m_jit.GetBlockCache()->GetEntryPoints())
     {
-      MOV(32, R(RSCRATCH2), PPCSTATE(msr));
-      AND(32, R(RSCRATCH2), Imm32(JitBaseBlockCache::JIT_CACHE_MSR_MASK));
-      SHL(64, R(RSCRATCH2), Imm8(28));
+      MOV(32, R(RSCRATCH2), PPCSTATE(feature_flags));
+      SHL(64, R(RSCRATCH2), Imm8(32));
 
       MOV(32, R(RSCRATCH_EXTRA), PPCSTATE(pc));
       OR(64, R(RSCRATCH_EXTRA), R(RSCRATCH2));
 
       u64 icache = reinterpret_cast<u64>(m_jit.GetBlockCache()->GetEntryPoints());
       MOV(64, R(RSCRATCH2), Imm64(icache));
-      // The entry points map is indexed by ((msrBits << 26) | (address >> 2)).
-      // The map contains 8 byte 64-bit pointers and that means we need to shift
-      // msr left by 29 bits and address left by 1 bit to get the correct offset
-      // in the map.
+      // The entry points map is indexed by ((feature_flags << 30) | (pc >> 2)).
+      // The map contains 8-byte pointers and that means we need to shift feature_flags
+      // left by 33 bits and pc left by 1 bit to get the correct offset in the map.
       MOV(64, R(RSCRATCH), MComplex(RSCRATCH2, RSCRATCH_EXTRA, SCALE_2, 0));
     }
     else
@@ -164,15 +160,17 @@ void Jit64AsmRoutineManager::Generate()
 
     if (!m_jit.GetBlockCache()->GetEntryPoints())
     {
-      // Check block.msrBits.
-      MOV(32, R(RSCRATCH2), PPCSTATE(msr));
-      AND(32, R(RSCRATCH2), Imm32(JitBaseBlockCache::JIT_CACHE_MSR_MASK));
-      // Also check the block.effectiveAddress
-      SHL(64, R(RSCRATCH2), Imm8(32));
-      // RSCRATCH_EXTRA still has the PC.
+      // Check block.feature_flags.
+      MOV(32, R(RSCRATCH2), PPCSTATE(feature_flags));
+      // Also check the block.effectiveAddress. RSCRATCH_EXTRA still has the PC.
+      SHL(64, R(RSCRATCH_EXTRA), Imm8(32));
       OR(64, R(RSCRATCH2), R(RSCRATCH_EXTRA));
+
+      static_assert(offsetof(JitBlockData, feature_flags) + 4 ==
+                    offsetof(JitBlockData, effectiveAddress));
+
       CMP(64, R(RSCRATCH2),
-          MDisp(RSCRATCH, static_cast<s32>(offsetof(JitBlockData, effectiveAddress))));
+          MDisp(RSCRATCH, static_cast<s32>(offsetof(JitBlockData, feature_flags))));
 
       state_mismatch = J_CC(CC_NE);
       // Success; branch to the block we found.
@@ -224,6 +222,9 @@ void Jit64AsmRoutineManager::Generate()
   ABI_CallFunction(JitTrampoline);
   ABI_PopRegistersAndAdjustStack({}, 0);
 
+  // If jitting triggered an ISI exception, MSR.DR may have changed
+  MOV(64, R(RMEM), PPCSTATE(mem_ptr));
+
   JMP(dispatcher_no_check, Jump::Near);
 
   SetJumpTarget(bail);
@@ -236,8 +237,8 @@ void Jit64AsmRoutineManager::Generate()
   // Check the state pointer to see if we are exiting
   // Gets checked on at the end of every slice
   MOV(64, R(RSCRATCH), ImmPtr(system.GetCPU().GetStatePtr()));
-  TEST(32, MatR(RSCRATCH), Imm32(0xFFFFFFFF));
-  J_CC(CC_Z, outerLoop);
+  CMP(32, MatR(RSCRATCH), Imm32(Common::ToUnderlying(CPU::State::Running)));
+  J_CC(CC_E, outerLoop);
 
   // Landing pad for drec space
   dispatcher_exit = GetCodePtr();

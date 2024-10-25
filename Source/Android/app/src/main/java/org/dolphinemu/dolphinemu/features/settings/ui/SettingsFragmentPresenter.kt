@@ -69,7 +69,7 @@ class SettingsFragmentPresenter(
         } else if (
             menuTag == MenuTag.GRAPHICS
             && this.gameId.isNullOrEmpty()
-            && !NativeLibrary.IsRunning()
+            && NativeLibrary.IsUninitialized()
             && GpuDriverHelper.supportsCustomDriverLoading()
         ) {
             this.gpuDriver =
@@ -1101,6 +1101,16 @@ class SettingsFragmentPresenter(
                     R.string.xlink_kai_bba_ip_description
                 )
             )
+        } else if (serialPort1Type == 11) {
+            // Broadband Adapter (tapserver)
+            sl.add(
+                InputStringSetting(
+                    context,
+                    StringSetting.MAIN_BBA_TAPSERVER_DESTINATION,
+                    R.string.bba_tapserver_destination,
+                    R.string.bba_tapserver_destination_description
+                )
+            )
         } else if (serialPort1Type == 12) {
             // Broadband Adapter (Built In)
             sl.add(
@@ -1109,6 +1119,16 @@ class SettingsFragmentPresenter(
                     StringSetting.MAIN_BBA_BUILTIN_DNS,
                     R.string.bba_builtin_dns,
                     R.string.bba_builtin_dns_description
+                )
+            )
+        } else if (serialPort1Type == 13) {
+            // Modem Adapter (tapserver)
+            sl.add(
+                InputStringSetting(
+                    context,
+                    StringSetting.MAIN_MODEM_TAPSERVER_DESTINATION,
+                    R.string.modem_tapserver_destination,
+                    R.string.modem_tapserver_destination_description
                 )
             )
         }
@@ -1206,6 +1226,24 @@ class SettingsFragmentPresenter(
                 MenuTag.getWiimoteMenuTag(3)
             )
         )
+        sl.add(SwitchSetting(context, object : AbstractBooleanSetting {
+            override val isOverridden: Boolean = IntSetting.WIIMOTE_BB_SOURCE.isOverridden
+
+            override val isRuntimeEditable: Boolean = IntSetting.WIIMOTE_BB_SOURCE.isRuntimeEditable
+
+            override fun delete(settings: Settings): Boolean {
+                return IntSetting.WIIMOTE_BB_SOURCE.delete(settings)
+            }
+
+            override val boolean: Boolean get() = IntSetting.WIIMOTE_BB_SOURCE.int == 2
+
+            override fun setBoolean(settings: Settings, newValue: Boolean) {
+                // 0 == None
+                // 1 == Emulated
+                // 2 == Real
+                IntSetting.WIIMOTE_BB_SOURCE.setInt(settings, if (newValue) 2 else 0)
+            }
+        }, R.string.real_balance_board, 0))
     }
 
     private fun addGraphicsSettings(sl: ArrayList<SettingsItem>) {
@@ -1283,7 +1321,7 @@ class SettingsFragmentPresenter(
 
         if (
             this.gpuDriver != null && this.gameId.isNullOrEmpty()
-            && !NativeLibrary.IsRunning()
+            && NativeLibrary.IsUninitialized()
             && GpuDriverHelper.supportsCustomDriverLoading()
         ) {
             sl.add(
@@ -1941,6 +1979,42 @@ class SettingsFragmentPresenter(
                 0
             )
         )
+        sl.add(
+            InvertedSwitchSetting(
+                context,
+                BooleanSetting.MAIN_FASTMEM_ARENA,
+                R.string.debug_fastmem_arena,
+                0
+            )
+        )
+        sl.add(
+            InvertedSwitchSetting(
+                context,
+                BooleanSetting.MAIN_LARGE_ENTRY_POINTS_MAP,
+                R.string.debug_large_entry_points_map,
+                0
+            )
+        )
+
+        sl.add(HeaderSetting(context, R.string.debug_jit_profiling_header, 0))
+        sl.add(
+            SwitchSetting(
+                context,
+                BooleanSetting.MAIN_DEBUG_JIT_ENABLE_PROFILING,
+                R.string.debug_jit_enable_block_profiling,
+                0
+           )
+        )
+        sl.add(
+            RunRunnable(
+                context,
+                R.string.debug_jit_write_block_log_dump,
+                0,
+                0,
+                0,
+                true
+            ) { NativeLibrary.WriteJitBlockLogDump() }
+        )
 
         sl.add(HeaderSetting(context, R.string.debug_jit_header, 0))
         sl.add(
@@ -2071,34 +2145,49 @@ class SettingsFragmentPresenter(
     }
 
     private fun addGcPadSubSettings(sl: ArrayList<SettingsItem>, gcPadNumber: Int, gcPadType: Int) {
-        if (gcPadType == 6) {
-            // Emulated
-            val gcPad = EmulatedController.getGcPad(gcPadNumber)
+        when (gcPadType) {
+            6, 8, 9, 10 -> {
+                // Emulated
+                val gcPad = EmulatedController.getGcPad(gcPadNumber)
 
-            if (!TextUtils.isEmpty(gameId)) {
-                addControllerPerGameSettings(sl, "Pad", gcPadNumber)
-            } else {
-                addControllerMetaSettings(sl, gcPad)
-                addControllerMappingSettings(sl, gcPad, null)
+                if (!TextUtils.isEmpty(gameId)) {
+                    addControllerPerGameSettings(sl, gcPad, gcPadNumber)
+                } else {
+                    addControllerMetaSettings(sl, gcPad)
+                    addControllerMappingSettings(sl, gcPad, null)
+                }
             }
-        } else if (gcPadType == 12) {
-            // Adapter
-            sl.add(
-                SwitchSetting(
-                    context,
-                    BooleanSetting.getSettingForAdapterRumble(gcPadNumber),
-                    R.string.gc_adapter_rumble,
-                    R.string.gc_adapter_rumble_description
+            7 -> {
+                // Emulated keyboard controller
+                val gcKeyboard = EmulatedController.getGcKeyboard(gcPadNumber)
+
+                if (!TextUtils.isEmpty(gameId)) {
+                    addControllerPerGameSettings(sl, gcKeyboard, gcPadNumber)
+                } else {
+                    sl.add(HeaderSetting(context, R.string.keyboard_controller_warning, 0))
+                    addControllerMetaSettings(sl, gcKeyboard)
+                    addControllerMappingSettings(sl, gcKeyboard, null)
+                }
+            }
+            12 -> {
+                // Adapter
+                sl.add(
+                    SwitchSetting(
+                        context,
+                        BooleanSetting.getSettingForAdapterRumble(gcPadNumber),
+                        R.string.gc_adapter_rumble,
+                        R.string.gc_adapter_rumble_description
+                    )
                 )
-            )
-            sl.add(
-                SwitchSetting(
-                    context,
-                    BooleanSetting.getSettingForSimulateKonga(gcPadNumber),
-                    R.string.gc_adapter_bongos,
-                    R.string.gc_adapter_bongos_description
+                sl.add(
+                    SwitchSetting(
+                        context,
+                        BooleanSetting.getSettingForSimulateKonga(gcPadNumber),
+                        R.string.gc_adapter_bongos,
+                        R.string.gc_adapter_bongos_description
+                    )
                 )
-            )
+            }
         }
     }
 
@@ -2106,7 +2195,7 @@ class SettingsFragmentPresenter(
         val wiimote = EmulatedController.getWiimote(wiimoteNumber)
 
         if (!TextUtils.isEmpty(gameId)) {
-            addControllerPerGameSettings(sl, "Wiimote", wiimoteNumber)
+            addControllerPerGameSettings(sl, wiimote, wiimoteNumber)
         } else {
             addControllerMetaSettings(sl, wiimote)
 
@@ -2202,11 +2291,11 @@ class SettingsFragmentPresenter(
      */
     private fun addControllerPerGameSettings(
         sl: ArrayList<SettingsItem>,
-        profileString: String,
+        controller: EmulatedController,
         controllerNumber: Int
     ) {
         val profiles = ProfileDialogPresenter(menuTag).getProfileNames(false)
-        val profileKey = profileString + "Profile" + (controllerNumber + 1)
+        val profileKey = controller.getProfileKey() + "Profile" + (controllerNumber + 1)
         sl.add(
             StringSingleChoiceSetting(
                 context,
@@ -2356,8 +2445,8 @@ class SettingsFragmentPresenter(
                     ceil(setting.getDoubleMin()).toFloat(),
                     floor(setting.getDoubleMax()).toFloat(),
                     setting.getUiSuffix(),
-                    1.0f,
-                    false
+                    0.5f,
+                    true
                 )
             )
 

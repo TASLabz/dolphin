@@ -21,6 +21,10 @@ const Info<int> GFX_ADAPTER{{System::GFX, "Hardware", "Adapter"}, 0};
 
 const Info<bool> GFX_WIDESCREEN_HACK{{System::GFX, "Settings", "wideScreenHack"}, false};
 const Info<AspectMode> GFX_ASPECT_RATIO{{System::GFX, "Settings", "AspectRatio"}, AspectMode::Auto};
+const Info<int> GFX_CUSTOM_ASPECT_RATIO_WIDTH{{System::GFX, "Settings", "CustomAspectRatioWidth"},
+                                              1};
+const Info<int> GFX_CUSTOM_ASPECT_RATIO_HEIGHT{{System::GFX, "Settings", "CustomAspectRatioHeight"},
+                                               1};
 const Info<AspectMode> GFX_SUGGESTED_ASPECT_RATIO{{System::GFX, "Settings", "SuggestedAspectRatio"},
                                                   AspectMode::Auto};
 const Info<u32> GFX_WIDESCREEN_HEURISTIC_TRANSITION_THRESHOLD{
@@ -66,8 +70,9 @@ const Info<std::string> GFX_DUMP_PIXEL_FORMAT{{System::GFX, "Settings", "DumpPix
 const Info<std::string> GFX_DUMP_ENCODER{{System::GFX, "Settings", "DumpEncoder"}, ""};
 const Info<std::string> GFX_DUMP_PATH{{System::GFX, "Settings", "DumpPath"}, ""};
 const Info<int> GFX_BITRATE_KBPS{{System::GFX, "Settings", "BitrateKbps"}, 25000};
-const Info<bool> GFX_INTERNAL_RESOLUTION_FRAME_DUMPS{
-    {System::GFX, "Settings", "InternalResolutionFrameDumps"}, false};
+const Info<FrameDumpResolutionType> GFX_FRAME_DUMPS_RESOLUTION_TYPE{
+    {System::GFX, "Settings", "FrameDumpsResolutionType"},
+    FrameDumpResolutionType::XFBAspectRatioCorrectedResolution};
 const Info<int> GFX_PNG_COMPRESSION_LEVEL{{System::GFX, "Settings", "PNGCompressionLevel"}, 6};
 const Info<bool> GFX_ENABLE_GPU_TEXTURE_DECODING{
     {System::GFX, "Settings", "EnableGPUTextureDecoding"}, false};
@@ -76,7 +81,7 @@ const Info<bool> GFX_FAST_DEPTH_CALC{{System::GFX, "Settings", "FastDepthCalc"},
 const Info<u32> GFX_MSAA{{System::GFX, "Settings", "MSAA"}, 1};
 const Info<bool> GFX_SSAA{{System::GFX, "Settings", "SSAA"}, false};
 const Info<int> GFX_EFB_SCALE{{System::GFX, "Settings", "InternalResolution"}, 1};
-const Info<int> GFX_MAX_EFB_SCALE{{System::GFX, "Settings", "MaxInternalResolution"}, 8};
+const Info<int> GFX_MAX_EFB_SCALE{{System::GFX, "Settings", "MaxInternalResolution"}, 12};
 const Info<bool> GFX_TEXFMT_OVERLAY_ENABLE{{System::GFX, "Settings", "TexFmtOverlayEnable"}, false};
 const Info<bool> GFX_TEXFMT_OVERLAY_CENTER{{System::GFX, "Settings", "TexFmtOverlayCenter"}, false};
 const Info<bool> GFX_ENABLE_WIREFRAME{{System::GFX, "Settings", "WireFrame"}, false};
@@ -135,7 +140,7 @@ const Info<bool> GFX_ENHANCE_FORCE_TRUE_COLOR{{System::GFX, "Enhancements", "For
 const Info<bool> GFX_ENHANCE_DISABLE_COPY_FILTER{{System::GFX, "Enhancements", "DisableCopyFilter"},
                                                  true};
 const Info<bool> GFX_ENHANCE_ARBITRARY_MIPMAP_DETECTION{
-    {System::GFX, "Enhancements", "ArbitraryMipmapDetection"}, true};
+    {System::GFX, "Enhancements", "ArbitraryMipmapDetection"}, false};
 const Info<float> GFX_ENHANCE_ARBITRARY_MIPMAP_DETECTION_THRESHOLD{
     {System::GFX, "Enhancements", "ArbitraryMipmapDetectionThreshold"}, 14.0f};
 const Info<bool> GFX_ENHANCE_HDR_OUTPUT{{System::GFX, "Enhancements", "HDROutput"}, false};
@@ -153,11 +158,13 @@ const Info<bool> GFX_CC_SDR_DISPLAY_GAMMA_SRGB{
 const Info<float> GFX_CC_SDR_DISPLAY_CUSTOM_GAMMA{
     {System::GFX, "ColorCorrection", "SDRDisplayCustomGamma"}, 2.2f};
 const Info<float> GFX_CC_HDR_PAPER_WHITE_NITS{{System::GFX, "ColorCorrection", "HDRPaperWhiteNits"},
-                                              200.f};
+                                              203.f};
 
 // Graphics.Stereoscopy
 
 const Info<StereoMode> GFX_STEREO_MODE{{System::GFX, "Stereoscopy", "StereoMode"}, StereoMode::Off};
+const Info<bool> GFX_STEREO_PER_EYE_RESOLUTION_FULL{
+    {System::GFX, "Stereoscopy", "StereoPerEyeResolutionFull"}, false};
 const Info<int> GFX_STEREO_DEPTH{{System::GFX, "Stereoscopy", "StereoDepth"}, 20};
 const Info<int> GFX_STEREO_CONVERGENCE_PERCENTAGE{
     {System::GFX, "Stereoscopy", "StereoConvergencePercentage"}, 100};

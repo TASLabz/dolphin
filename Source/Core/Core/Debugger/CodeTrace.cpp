@@ -53,12 +53,11 @@ u32 GetMemoryTargetSize(std::string_view instr)
 bool CompareMemoryTargetToTracked(const std::string& instr, const u32 mem_target,
                                   const std::set<u32>& mem_tracked)
 {
-  // This function is hit often and should be optimized.
-  auto it_lower = std::lower_bound(mem_tracked.begin(), mem_tracked.end(), mem_target);
+  const auto it_lower = mem_tracked.lower_bound(mem_target);
 
   if (it_lower == mem_tracked.end())
     return false;
-  else if (*it_lower == mem_target)
+  if (*it_lower == mem_target)
     return true;
 
   // If the base value doesn't hit, still need to check if longer values overlap.
@@ -73,13 +72,11 @@ void CodeTrace::SetRegTracked(const std::string& reg)
 
 InstructionAttributes CodeTrace::GetInstructionAttributes(const TraceOutput& instruction) const
 {
-  auto& system = Core::System::GetInstance();
-
   // Slower process of breaking down saved instruction. Only used when stepping through code if a
   // decision has to be made, otherwise used afterwards on a log file.
   InstructionAttributes tmp_attributes;
   tmp_attributes.instruction = instruction.instruction;
-  tmp_attributes.address = system.GetPPCState().pc;
+  tmp_attributes.address = instruction.address;
   std::string instr = instruction.instruction;
   std::smatch match;
 
@@ -192,7 +189,6 @@ AutoStepResults CodeTrace::AutoStepping(const Core::CPUThreadGuard& guard, bool 
     stop_condition = HitType::ACTIVE;
 
   auto& power_pc = guard.GetSystem().GetPowerPC();
-  power_pc.GetBreakPoints().ClearAllTemporary();
   using clock = std::chrono::steady_clock;
   clock::time_point timeout = clock::now() + std::chrono::seconds(4);
 
@@ -256,7 +252,7 @@ HitType CodeTrace::TraceLogic(const TraceOutput& current_instr, bool first_hit)
     return HitType::SKIP;
 
   // The reg_itr will be used later for erasing.
-  auto reg_itr = std::find(m_reg_autotrack.begin(), m_reg_autotrack.end(), instr.reg0);
+  auto reg_itr = std::ranges::find(m_reg_autotrack, instr.reg0);
   const bool match_reg123 =
       (!instr.reg1.empty() && std::find(m_reg_autotrack.begin(), m_reg_autotrack.end(),
                                         instr.reg1) != m_reg_autotrack.end()) ||

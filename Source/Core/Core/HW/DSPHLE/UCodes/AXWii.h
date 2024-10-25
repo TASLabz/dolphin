@@ -16,6 +16,7 @@ class AXWiiUCode final : public AXUCode
 public:
   AXWiiUCode(DSPHLE* dsphle, u32 crc);
 
+  void Initialize() override;
   void DoState(PointerWrap& p) override;
 
 protected:
@@ -36,6 +37,9 @@ protected:
 
   // Are we implementing an old version of AXWii which still has updates?
   bool m_old_axwii = false;
+
+  // Late AXWii versions support Wiimote filtering and a biquad filter.
+  bool m_new_filter = false;
 
   // Last volume values for MAIN and AUX. Used to generate volume ramps to
   // interpolate nicely between old and new volume values.

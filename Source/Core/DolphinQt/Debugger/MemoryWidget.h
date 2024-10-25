@@ -22,20 +22,20 @@ class QSplitter;
 
 namespace Core
 {
+class System;
 class CPUThreadGuard;
-}
+}  // namespace Core
 
 class MemoryWidget : public QDockWidget
 {
   Q_OBJECT
 public:
-  explicit MemoryWidget(QWidget* parent = nullptr);
+  explicit MemoryWidget(Core::System& system, QWidget* parent = nullptr);
   ~MemoryWidget();
 
   void SetAddress(u32 address);
   void Update();
 signals:
-  void BreakpointsChanged();
   void ShowCode(u32 address);
   void RequestWatch(QString name, u32 address);
 
@@ -77,6 +77,8 @@ private:
 
   void closeEvent(QCloseEvent*) override;
   void showEvent(QShowEvent* event) override;
+
+  Core::System& m_system;
 
   MemoryViewWidget* m_memory_view;
   QSplitter* m_splitter;

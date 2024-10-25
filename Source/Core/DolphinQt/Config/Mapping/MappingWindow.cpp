@@ -59,8 +59,6 @@
 #include "InputCommon/ControllerInterface/CoreDevice.h"
 #include "InputCommon/InputConfig.h"
 
-constexpr const char* PROFILES_DIR = "Profiles/";
-
 MappingWindow::MappingWindow(QWidget* parent, Type type, int port_num)
     : QDialog(parent), m_port(port_num)
 {
@@ -169,6 +167,8 @@ void MappingWindow::CreateMainLayout()
   m_tab_widget = new QTabWidget();
   m_button_box = new QDialogButtonBox(QDialogButtonBox::Close);
 
+  m_tab_widget->setTabBarAutoHide(true);
+
   m_config_layout->addWidget(m_devices_box);
   m_config_layout->addWidget(m_reset_box);
   m_config_layout->addWidget(m_profiles_box);
@@ -185,8 +185,7 @@ void MappingWindow::ConnectWidgets()
   connect(&Settings::Instance(), &Settings::DevicesChanged, this,
           &MappingWindow::OnGlobalDevicesChanged);
   connect(this, &MappingWindow::ConfigChanged, this, &MappingWindow::OnGlobalDevicesChanged);
-  connect(m_devices_combo, qOverload<int>(&QComboBox::currentIndexChanged), this,
-          &MappingWindow::OnSelectDevice);
+  connect(m_devices_combo, &QComboBox::currentIndexChanged, this, &MappingWindow::OnSelectDevice);
 
   connect(m_reset_clear, &QPushButton::clicked, this, &MappingWindow::OnClearFieldsPressed);
   connect(m_reset_default, &QPushButton::clicked, this, &MappingWindow::OnDefaultFieldsPressed);
@@ -194,8 +193,7 @@ void MappingWindow::ConnectWidgets()
   connect(m_profiles_load, &QPushButton::clicked, this, &MappingWindow::OnLoadProfilePressed);
   connect(m_profiles_delete, &QPushButton::clicked, this, &MappingWindow::OnDeleteProfilePressed);
 
-  connect(m_profiles_combo, qOverload<int>(&QComboBox::currentIndexChanged), this,
-          &MappingWindow::OnSelectProfile);
+  connect(m_profiles_combo, &QComboBox::currentIndexChanged, this, &MappingWindow::OnSelectProfile);
   connect(m_profiles_combo, &QComboBox::editTextChanged, this,
           &MappingWindow::OnProfileTextChanged);
 
@@ -321,9 +319,8 @@ void MappingWindow::OnSaveProfilePressed()
   if (profile_name.isEmpty())
     return;
 
-  const std::string profile_path = File::GetUserPath(D_CONFIG_IDX) + PROFILES_DIR +
-                                   m_config->GetProfileName() + "/" + profile_name.toStdString() +
-                                   ".ini";
+  const std::string profile_path =
+      m_config->GetUserProfileDirectoryPath() + profile_name.toStdString() + ".ini";
 
   File::CreateFullPath(profile_path);
 
@@ -489,8 +486,7 @@ void MappingWindow::PopulateProfileSelection()
 {
   m_profiles_combo->clear();
 
-  const std::string profiles_path =
-      File::GetUserPath(D_CONFIG_IDX) + PROFILES_DIR + m_config->GetProfileName();
+  const std::string profiles_path = m_config->GetUserProfileDirectoryPath();
   for (const auto& filename : Common::DoFileSearch({profiles_path}, {".ini"}))
   {
     std::string basename;
@@ -501,9 +497,8 @@ void MappingWindow::PopulateProfileSelection()
 
   m_profiles_combo->insertSeparator(m_profiles_combo->count());
 
-  const std::string builtin_profiles_path =
-      File::GetSysDirectory() + PROFILES_DIR + m_config->GetProfileName();
-  for (const auto& filename : Common::DoFileSearch({builtin_profiles_path}, {".ini"}))
+  for (const auto& filename :
+       Common::DoFileSearch({m_config->GetSysProfileDirectoryPath()}, {".ini"}))
   {
     std::string basename;
     SplitPath(filename, nullptr, &basename, nullptr);

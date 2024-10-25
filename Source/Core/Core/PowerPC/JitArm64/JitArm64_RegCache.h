@@ -72,7 +72,7 @@ enum class RegType
   DuplicatedSingle,  // The lower one contains both registers, as single
 };
 
-enum class FlushMode
+enum class FlushMode : bool
 {
   // Flushes all registers, no exceptions
   All,
@@ -151,7 +151,6 @@ public:
   Arm64Gen::ARM64Reg GetReg() const { return m_reg; }
 
   bool operator==(Arm64Gen::ARM64Reg reg) const { return reg == m_reg; }
-  bool operator!=(Arm64Gen::ARM64Reg reg) const { return !operator==(reg); }
 
 private:
   Arm64Gen::ARM64Reg m_reg = Arm64Gen::ARM64Reg::INVALID_REG;
@@ -227,7 +226,7 @@ protected:
                            Arm64Gen::ARM64Reg tmp_reg = Arm64Gen::ARM64Reg::INVALID_REG) = 0;
 
   void DiscardRegister(size_t preg);
-  virtual void FlushRegister(size_t preg, bool maintain_state, Arm64Gen::ARM64Reg tmp_reg) = 0;
+  virtual void FlushRegister(size_t preg, FlushMode mode, Arm64Gen::ARM64Reg tmp_reg) = 0;
 
   void IncrementAllUsed()
   {
@@ -286,6 +285,8 @@ public:
   // Gets the immediate that a register is set to. Only valid for guest GPRs.
   u32 GetImm(size_t preg) const { return GetGuestGPROpArg(preg).GetImm(); }
 
+  bool IsImm(size_t preg, u32 imm) { return IsImm(preg) && GetImm(preg) == imm; }
+
   // Binds a guest GPR to a host register, optionally loading its value.
   //
   // preg: The guest register index.
@@ -325,15 +326,20 @@ public:
 
   BitSet32 GetCallerSavedUsed() const override;
 
+  BitSet32 GetDirtyGPRs() const;
+
   void StoreRegisters(BitSet32 regs, Arm64Gen::ARM64Reg tmp_reg = Arm64Gen::ARM64Reg::INVALID_REG)
   {
-    FlushRegisters(regs, false, tmp_reg);
+    FlushRegisters(regs, FlushMode::All, tmp_reg);
   }
 
-  void StoreCRRegisters(BitSet32 regs, Arm64Gen::ARM64Reg tmp_reg = Arm64Gen::ARM64Reg::INVALID_REG)
+  void StoreCRRegisters(BitSet8 regs, Arm64Gen::ARM64Reg tmp_reg = Arm64Gen::ARM64Reg::INVALID_REG)
   {
-    FlushCRRegisters(regs, false, tmp_reg);
+    FlushCRRegisters(regs, FlushMode::All, tmp_reg);
   }
+
+  void DiscardCRRegisters(BitSet8 regs);
+  void ResetCRRegisters(BitSet8 regs);
 
 protected:
   // Get the order of the host registers
@@ -343,7 +349,7 @@ protected:
   void FlushByHost(Arm64Gen::ARM64Reg host_reg,
                    Arm64Gen::ARM64Reg tmp_reg = Arm64Gen::ARM64Reg::INVALID_REG) override;
 
-  void FlushRegister(size_t index, bool maintain_state, Arm64Gen::ARM64Reg tmp_reg) override;
+  void FlushRegister(size_t index, FlushMode mode, Arm64Gen::ARM64Reg tmp_reg) override;
 
 private:
   bool IsCallerSaved(Arm64Gen::ARM64Reg reg) const;
@@ -364,8 +370,8 @@ private:
   void SetImmediate(const GuestRegInfo& guest_reg, u32 imm, bool dirty);
   void BindToRegister(const GuestRegInfo& guest_reg, bool will_read, bool will_write = true);
 
-  void FlushRegisters(BitSet32 regs, bool maintain_state, Arm64Gen::ARM64Reg tmp_reg);
-  void FlushCRRegisters(BitSet32 regs, bool maintain_state, Arm64Gen::ARM64Reg tmp_reg);
+  void FlushRegisters(BitSet32 regs, FlushMode mode, Arm64Gen::ARM64Reg tmp_reg);
+  void FlushCRRegisters(BitSet8 regs, FlushMode mode, Arm64Gen::ARM64Reg tmp_reg);
 };
 
 class Arm64FPRCache : public Arm64RegCache
@@ -391,7 +397,7 @@ public:
 
   void StoreRegisters(BitSet32 regs, Arm64Gen::ARM64Reg tmp_reg = Arm64Gen::ARM64Reg::INVALID_REG)
   {
-    FlushRegisters(regs, false, tmp_reg);
+    FlushRegisters(regs, FlushMode::All, tmp_reg);
   }
 
 protected:
@@ -402,11 +408,11 @@ protected:
   void FlushByHost(Arm64Gen::ARM64Reg host_reg,
                    Arm64Gen::ARM64Reg tmp_reg = Arm64Gen::ARM64Reg::INVALID_REG) override;
 
-  void FlushRegister(size_t preg, bool maintain_state, Arm64Gen::ARM64Reg tmp_reg) override;
+  void FlushRegister(size_t preg, FlushMode mode, Arm64Gen::ARM64Reg tmp_reg) override;
 
 private:
   bool IsCallerSaved(Arm64Gen::ARM64Reg reg) const;
   bool IsTopHalfUsed(Arm64Gen::ARM64Reg reg) const;
 
-  void FlushRegisters(BitSet32 regs, bool maintain_state, Arm64Gen::ARM64Reg tmp_reg);
+  void FlushRegisters(BitSet32 regs, FlushMode mode, Arm64Gen::ARM64Reg tmp_reg);
 };

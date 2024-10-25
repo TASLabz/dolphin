@@ -50,8 +50,8 @@
 #include "UICommon/DiscordPresence.h"
 #include "UICommon/USBUtils.h"
 
-#ifdef HAVE_X11
-#include "UICommon/X11Utils.h"
+#ifdef HAVE_QTDBUS
+#include "UICommon/DBusUtils.h"
 #endif
 
 #ifdef __APPLE__
@@ -74,6 +74,9 @@ static void CreateDumpPath(std::string path)
   File::CreateFullPath(File::GetUserPath(D_DUMPFRAMES_IDX));
   File::CreateFullPath(File::GetUserPath(D_DUMPOBJECTS_IDX));
   File::CreateFullPath(File::GetUserPath(D_DUMPTEXTURES_IDX));
+  File::CreateFullPath(File::GetUserPath(D_DUMPDEBUG_IDX));
+  File::CreateFullPath(File::GetUserPath(D_DUMPDEBUG_BRANCHWATCH_IDX));
+  File::CreateFullPath(File::GetUserPath(D_DUMPDEBUG_JITBLOCKS_IDX));
 }
 
 static void CreateLoadPath(std::string path)
@@ -256,6 +259,9 @@ void CreateDirectories()
   File::CreateFullPath(File::GetUserPath(D_DUMPDSP_IDX));
   File::CreateFullPath(File::GetUserPath(D_DUMPSSL_IDX));
   File::CreateFullPath(File::GetUserPath(D_DUMPTEXTURES_IDX));
+  File::CreateFullPath(File::GetUserPath(D_DUMPDEBUG_IDX));
+  File::CreateFullPath(File::GetUserPath(D_DUMPDEBUG_BRANCHWATCH_IDX));
+  File::CreateFullPath(File::GetUserPath(D_DUMPDEBUG_JITBLOCKS_IDX));
   File::CreateFullPath(File::GetUserPath(D_GAMESETTINGS_IDX));
   File::CreateFullPath(File::GetUserPath(D_GCUSER_IDX));
   File::CreateFullPath(File::GetUserPath(D_GCUSER_IDX) + USA_DIR DIR_SEP);
@@ -268,7 +274,9 @@ void CreateDirectories()
   File::CreateFullPath(File::GetUserPath(D_SCREENSHOTS_IDX));
   File::CreateFullPath(File::GetUserPath(D_SHADERS_IDX));
   File::CreateFullPath(File::GetUserPath(D_SHADERS_IDX) + ANAGLYPH_DIR DIR_SEP);
+  File::CreateFullPath(File::GetUserPath(D_RETROACHIEVEMENTSCACHE_IDX));
   File::CreateFullPath(File::GetUserPath(D_STATESAVES_IDX));
+  File::CreateFullPath(File::GetUserPath(D_ASM_ROOT_IDX));
 #ifndef ANDROID
   File::CreateFullPath(File::GetUserPath(D_THEMES_IDX));
   File::CreateFullPath(File::GetUserPath(D_STYLES_IDX));
@@ -303,21 +311,12 @@ void SetUserDirectory(std::string custom_path)
   //    -> Use AppData\Roaming\Dolphin Emulator as the User directory path
   // 6. Default
   //    -> Use GetExeDirectory()\User
-  //
-  // On Steam builds, we take a simplified approach:
-  // 1. GetExeDirectory()\portable.txt exists
-  //    -> Use GetExeDirectory()\User
-  // 2. AppData\Roaming exists
-  //    -> Use AppData\Roaming\Dolphin Emulator (Steam) as the User directory path
-  // 3. Default
-  //    -> Use GetExeDirectory()\User
 
   // Get AppData path in case we need it.
   wil::unique_cotaskmem_string appdata;
   bool appdata_found = SUCCEEDED(
       SHGetKnownFolderPath(FOLDERID_RoamingAppData, KF_FLAG_DEFAULT, nullptr, appdata.put()));
 
-#ifndef STEAM
   // Check our registry keys
   wil::unique_hkey hkey;
   DWORD local = 0;
@@ -384,21 +383,6 @@ void SetUserDirectory(std::string custom_path)
   {
     user_path = File::GetExeDirectory() + DIR_SEP PORTABLE_USER_DIR DIR_SEP;
   }
-#else  // ifndef STEAM
-  if (File::Exists(File::GetExeDirectory() + DIR_SEP "portable.txt"))  // Case 1
-  {
-    user_path = File::GetExeDirectory() + DIR_SEP PORTABLE_USER_DIR DIR_SEP;
-  }
-  else if (appdata_found)  // Case 2
-  {
-    user_path = TStrToUTF8(appdata.get()) + DIR_SEP NORMAL_USER_DIR DIR_SEP;
-  }
-  else  // Case 3
-  {
-    user_path = File::GetExeDirectory() + DIR_SEP PORTABLE_USER_DIR DIR_SEP;
-  }
-#endif
-
 #else
   if (File::IsDirectory(ROOT_DIR DIR_SEP EMBEDDED_USER_DIR))
   {
@@ -419,7 +403,7 @@ void SetUserDirectory(std::string custom_path)
     //    -> Use GetExeDirectory()/User
     // 2. $DOLPHIN_EMU_USERPATH is set
     //    -> Use $DOLPHIN_EMU_USERPATH
-    // 3. ~/.dolphin-emu directory exists
+    // 3. ~/.dolphin-emu directory exists, and we're not in flatpak
     //    -> Use ~/.dolphin-emu
     // 4. Default
     //    -> Use XDG basedir, see
@@ -452,7 +436,7 @@ void SetUserDirectory(std::string custom_path)
     {
       user_path = home_path + "." NORMAL_USER_DIR DIR_SEP;
 
-      if (!File::Exists(user_path))
+      if (File::Exists("/.flatpak-info") || !File::Exists(user_path))
       {
         const char* data_home = getenv("XDG_DATA_HOME");
         std::string data_path =
@@ -485,7 +469,7 @@ void SetUserDirectory(std::string custom_path)
 
 bool TriggerSTMPowerEvent()
 {
-  const auto ios = IOS::HLE::GetIOS();
+  const auto ios = Core::System::GetInstance().GetIOS();
   if (!ios)
     return false;
 
@@ -494,23 +478,18 @@ bool TriggerSTMPowerEvent()
     return false;
 
   Core::DisplayMessage("Shutting down", 30000);
-  auto& system = Core::System::GetInstance();
-  system.GetProcessorInterface().PowerButton_Tap();
+  ios->GetSystem().GetProcessorInterface().PowerButton_Tap();
 
   return true;
 }
 
-#ifdef HAVE_X11
-void InhibitScreenSaver(Window win, bool inhibit)
-#else
 void InhibitScreenSaver(bool inhibit)
-#endif
 {
   // Inhibit the screensaver. Depending on the operating system this may also
   // disable low-power states and/or screen dimming.
 
-#ifdef HAVE_X11
-  X11Utils::InhibitScreensaver(win, inhibit);
+#ifdef HAVE_QTDBUS
+  DBusUtils::InhibitScreenSaver(inhibit);
 #endif
 
 #ifdef _WIN32

@@ -9,12 +9,12 @@
 #include <vector>
 
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 
 #include "Common/Common.h"
 #include "Common/CommonTypes.h"
 #include "Common/FileUtil.h"
 #include "Common/IniFile.h"
-#include "Common/StringUtil.h"
 
 #include "InputCommon/ControllerEmu/Control/Input.h"
 #include "InputCommon/ControllerEmu/ControlGroup/Buttons.h"
@@ -38,6 +38,9 @@ constexpr std::array<const char*, NUM_HOTKEYS> s_hotkey_labels{{
     _trans("Center Mouse"),
     _trans("Activate NetPlay Chat"),
     _trans("Control NetPlay Golf Mode"),
+#ifdef USE_RETRO_ACHIEVEMENTS
+    _trans("Open Achievements"),
+#endif  // USE_RETRO_ACHIEVEMENTS
 
     _trans("Volume Down"),
     _trans("Volume Up"),
@@ -207,7 +210,7 @@ static std::array<u32, NUM_HOTKEY_GROUPS> s_hotkey_down;
 static HotkeyStatus s_hotkey;
 static bool s_enabled;
 
-static InputConfig s_config("Hotkeys", _trans("Hotkeys"), "Hotkeys");
+static InputConfig s_config("Hotkeys", _trans("Hotkeys"), "Hotkeys", "Hotkeys");
 
 InputConfig* GetConfig()
 {
@@ -304,7 +307,7 @@ void Initialize()
 
 void LoadConfig()
 {
-  s_config.LoadConfig(InputConfig::InputClass::GC);
+  s_config.LoadConfig();
   LoadLegacyConfig(s_config.GetController(0));
 }
 
@@ -330,7 +333,11 @@ struct HotkeyGroupInfo
 };
 
 constexpr std::array<HotkeyGroupInfo, NUM_HOTKEY_GROUPS> s_groups_info = {
+#ifdef USE_RETRO_ACHIEVEMENTS
+    {{_trans("General"), HK_OPEN, HK_OPEN_ACHIEVEMENTS},
+#else   // USE_RETRO_ACHIEVEMENTS
     {{_trans("General"), HK_OPEN, HK_REQUEST_GOLF_CONTROL},
+#endif  // USE_RETRO_ACHIEVEMENTS
      {_trans("Volume"), HK_VOLUME_DOWN, HK_VOLUME_TOGGLE_MUTE},
      {_trans("Emulation Speed"), HK_DECREASE_EMULATION_SPEED, HK_TOGGLE_THROTTLE},
      {_trans("Frame Advance"), HK_FRAME_ADVANCE, HK_FRAME_ADVANCE_RESET_SPEED},
@@ -383,6 +390,11 @@ std::string HotkeyManager::GetName() const
   return "Hotkeys";
 }
 
+InputConfig* HotkeyManager::GetConfig() const
+{
+  return HotkeyManagerEmu::GetConfig();
+}
+
 void HotkeyManager::GetInput(HotkeyStatus* kb, bool ignore_focus)
 {
   const auto lock = GetStateLock();
@@ -408,8 +420,8 @@ ControllerEmu::ControlGroup* HotkeyManager::GetHotkeyGroup(HotkeyGroup group) co
 
 int HotkeyManager::FindGroupByID(int id) const
 {
-  const auto i = std::find_if(s_groups_info.begin(), s_groups_info.end(),
-                              [id](const auto& entry) { return entry.last >= id; });
+  const auto i =
+      std::ranges::find_if(s_groups_info, [id](const auto& entry) { return entry.last >= id; });
 
   return static_cast<int>(std::distance(s_groups_info.begin(), i));
 }
@@ -430,7 +442,7 @@ void HotkeyManager::LoadDefaults(const ControllerInterface& ciface)
   };
 
   auto hotkey_string = [](std::vector<std::string> inputs) {
-    return "@(" + JoinStrings(inputs, "+") + ')';
+    return fmt::format("@({})", fmt::join(inputs, "+"));
   };
 
   // General hotkeys
@@ -443,6 +455,9 @@ void HotkeyManager::LoadDefaults(const ControllerInterface& ciface)
   set_key_expression(HK_STOP, "Escape");
   set_key_expression(HK_FULLSCREEN, hotkey_string({"Alt", "Return"}));
 #endif
+#ifdef USE_RETRO_ACHIEVEMENTS
+  set_key_expression(HK_OPEN_ACHIEVEMENTS, hotkey_string({"Alt", "A"}));
+#endif  // USE_RETRO_ACHIEVEMENTS
   set_key_expression(HK_STEP, "F11");
   set_key_expression(HK_STEP_OVER, hotkey_string({"Shift", "F10"}));
   set_key_expression(HK_STEP_OUT, hotkey_string({"Shift", "F11"}));

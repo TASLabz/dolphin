@@ -4,23 +4,21 @@
 #include "Core/PowerPC/PowerPC.h"
 
 #include <algorithm>
+#include <bit>
 #include <cstring>
-#include <istream>
-#include <ostream>
 #include <type_traits>
 #include <vector>
 
 #include "Common/Assert.h"
-#include "Common/BitUtils.h"
 #include "Common/ChunkFile.h"
 #include "Common/CommonTypes.h"
 #include "Common/FPURoundMode.h"
 #include "Common/FloatUtils.h"
 #include "Common/Logging/Log.h"
 
+#include "Core/CPUThreadConfigCallback.h"
 #include "Core/API/Events.h"
 #include "Core/Config/MainSettings.h"
-#include "Core/ConfigManager.h"
 #include "Core/Core.h"
 #include "Core/CoreTiming.h"
 #include "Core/HW/CPU.h"
@@ -38,55 +36,33 @@ namespace PowerPC
 {
 double PairedSingle::PS0AsDouble() const
 {
-  return Common::BitCast<double>(ps0);
+  return std::bit_cast<double>(ps0);
 }
 
 double PairedSingle::PS1AsDouble() const
 {
-  return Common::BitCast<double>(ps1);
+  return std::bit_cast<double>(ps1);
 }
 
 void PairedSingle::SetPS0(double value)
 {
-  ps0 = Common::BitCast<u64>(value);
+  ps0 = std::bit_cast<u64>(value);
 }
 
 void PairedSingle::SetPS1(double value)
 {
-  ps1 = Common::BitCast<u64>(value);
+  ps1 = std::bit_cast<u64>(value);
 }
 
 static void InvalidateCacheThreadSafe(Core::System& system, u64 userdata, s64 cyclesLate)
 {
-  system.GetPPCState().iCache.Invalidate(static_cast<u32>(userdata));
-}
-
-std::istream& operator>>(std::istream& is, CPUCore& core)
-{
-  std::underlying_type_t<CPUCore> val{};
-
-  if (is >> val)
-  {
-    core = static_cast<CPUCore>(val);
-  }
-  else
-  {
-    // Upon failure, fall back to the cached interpreter
-    // to ensure we always initialize our core reference.
-    core = CPUCore::CachedInterpreter;
-  }
-
-  return is;
-}
-
-std::ostream& operator<<(std::ostream& os, CPUCore core)
-{
-  os << static_cast<std::underlying_type_t<CPUCore>>(core);
-  return os;
+  system.GetPPCState().iCache.Invalidate(system.GetMemory(), system.GetJitInterface(),
+                                         static_cast<u32>(userdata));
 }
 
 PowerPCManager::PowerPCManager(Core::System& system)
-    : m_breakpoints(system), m_memchecks(system), m_debug_interface(system), m_system(system)
+    : m_breakpoints(system), m_memchecks(system), m_debug_interface(system, m_symbol_db),
+      m_system(system)
 {
 }
 
@@ -125,18 +101,20 @@ void PowerPCManager::DoState(PointerWrap& p)
   p.Do(m_ppc_state.reserve);
   p.Do(m_ppc_state.reserve_address);
 
-  m_ppc_state.iCache.DoState(p);
-  m_ppc_state.dCache.DoState(p);
+  auto& memory = m_system.GetMemory();
+  m_ppc_state.iCache.DoState(memory, p);
+  m_ppc_state.dCache.DoState(memory, p);
 
   if (p.IsReadMode())
   {
     if (!m_ppc_state.m_enable_dcache)
     {
       INFO_LOG_FMT(POWERPC, "Flushing data cache");
-      m_ppc_state.dCache.FlushAll();
+      m_ppc_state.dCache.FlushAll(memory);
     }
 
     RoundingModeUpdated(m_ppc_state);
+    RecalculateAllFeatureFlags(m_ppc_state);
 
     auto& mmu = m_system.GetMMU();
     mmu.IBATUpdated();
@@ -167,7 +145,7 @@ void PowerPCManager::ResetRegisters()
   // 0x00083214 = gekko 2.4e (8SE) - retail HW2
   // Wii:
   // 0x00087102 = broadway retail hw
-  if (SConfig::GetInstance().bWii)
+  if (m_system.IsWii())
   {
     m_ppc_state.spr[SPR_PVR] = 0x00087102;
   }
@@ -194,20 +172,22 @@ void PowerPCManager::ResetRegisters()
   }
   m_ppc_state.SetXER({});
 
-  RoundingModeUpdated(m_ppc_state);
-
   auto& mmu = m_system.GetMMU();
   mmu.DBATUpdated();
   mmu.IBATUpdated();
 
+  auto& system_timers = m_system.GetSystemTimers();
   TL(m_ppc_state) = 0;
   TU(m_ppc_state) = 0;
-  SystemTimers::TimeBaseSet();
+  system_timers.TimeBaseSet();
 
   // MSR should be 0x40, but we don't emulate BS1, so it would never be turned off :}
   m_ppc_state.msr.Hex = 0;
   m_ppc_state.spr[SPR_DEC] = 0xFFFFFFFF;
-  SystemTimers::DecrementerSet();
+  system_timers.DecrementerSet();
+
+  RoundingModeUpdated(m_ppc_state);
+  RecalculateAllFeatureFlags(m_ppc_state);
 }
 
 void PowerPCManager::InitializeCPUCore(CPUCore cpu_core)
@@ -263,21 +243,34 @@ CPUCore DefaultCPUCore()
 #endif
 }
 
+void PowerPCManager::RefreshConfig()
+{
+  const bool old_enable_dcache = m_ppc_state.m_enable_dcache;
+
+  m_ppc_state.m_enable_dcache = Config::Get(Config::MAIN_ACCURATE_CPU_CACHE);
+
+  if (old_enable_dcache && !m_ppc_state.m_enable_dcache)
+  {
+    INFO_LOG_FMT(POWERPC, "Flushing data cache");
+    m_ppc_state.dCache.FlushAll(m_system.GetMemory());
+  }
+}
+
 void PowerPCManager::Init(CPUCore cpu_core)
 {
+  m_registered_config_callback_id =
+      CPUThreadConfigCallback::AddConfigChangedCallback([this] { RefreshConfig(); });
+  RefreshConfig();
+
   m_invalidate_cache_thread_safe =
       m_system.GetCoreTiming().RegisterEvent("invalidateEmulatedCache", InvalidateCacheThreadSafe);
 
   Reset();
 
   InitializeCPUCore(cpu_core);
-  m_ppc_state.iCache.Init();
-  m_ppc_state.dCache.Init();
-
-  m_ppc_state.m_enable_dcache = Config::Get(Config::MAIN_ACCURATE_CPU_CACHE);
-
-  if (Config::Get(Config::MAIN_ENABLE_DEBUGGING))
-    m_breakpoints.ClearAllTemporary();
+  auto& memory = m_system.GetMemory();
+  m_ppc_state.iCache.Init(memory);
+  m_ppc_state.dCache.Init(memory);
 }
 
 void PowerPCManager::Reset()
@@ -287,7 +280,7 @@ void PowerPCManager::Reset()
   m_ppc_state.tlb = {};
 
   ResetRegisters();
-  m_ppc_state.iCache.Reset();
+  m_ppc_state.iCache.Reset(m_system.GetJitInterface());
   m_ppc_state.dCache.Reset();
 }
 
@@ -302,12 +295,14 @@ void PowerPCManager::ScheduleInvalidateCacheThreadSafe(u32 address)
   }
   else
   {
-    m_ppc_state.iCache.Invalidate(static_cast<u32>(address));
+    m_ppc_state.iCache.Invalidate(m_system.GetMemory(), m_system.GetJitInterface(),
+                                  static_cast<u32>(address));
   }
 }
 
 void PowerPCManager::Shutdown()
 {
+  CPUThreadConfigCallback::RemoveConfigChangedCallback(m_registered_config_callback_id);
   InjectExternalCPUCore(nullptr);
   m_system.GetJitInterface().Shutdown();
   m_system.GetInterpreter().Shutdown();
@@ -565,15 +560,15 @@ void PowerPCManager::CheckExceptions()
     DEBUG_LOG_FMT(POWERPC, "EXCEPTION_ALIGNMENT");
     m_ppc_state.Exceptions &= ~EXCEPTION_ALIGNMENT;
   }
-
-  // EXTERNAL INTERRUPT
   else
   {
+    // EXTERNAL INTERRUPT
     CheckExternalExceptions();
     return;
   }
 
   m_system.GetJitInterface().UpdateMembase();
+  MSRUpdated(m_ppc_state);
 }
 
 void PowerPCManager::CheckExternalExceptions()
@@ -626,38 +621,47 @@ void PowerPCManager::CheckExternalExceptions()
       ERROR_LOG_FMT(POWERPC, "Unknown EXTERNAL INTERRUPT exception: Exceptions == {:08x}",
                     exceptions);
     }
+    MSRUpdated(m_ppc_state);
   }
 
   m_system.GetJitInterface().UpdateMembase();
 }
 
-void PowerPCManager::CheckBreakPoints()
+bool PowerPCManager::CheckBreakPoints()
 {
   const TBreakPoint* bp = m_breakpoints.GetBreakpoint(m_ppc_state.pc);
 
   if (!bp || !bp->is_enabled || !EvaluateCondition(m_system, bp->condition))
-    return;
+    return false;
 
-  if (bp->break_on_hit)
-  {
-    m_system.GetCPU().Break();
-    if (GDBStub::IsActive())
-      GDBStub::TakeControl();
-
-    API::GetEventHub().EmitEvent(API::Events::CodeBreakpoint{m_ppc_state.pc});
-  }
   if (bp->log_on_hit)
   {
     NOTICE_LOG_FMT(MEMMAP,
                    "BP {:08x} {}({:08x} {:08x} {:08x} {:08x} {:08x} {:08x} {:08x} {:08x} {:08x} "
                    "{:08x}) LR={:08x}",
-                   m_ppc_state.pc, g_symbolDB.GetDescription(m_ppc_state.pc), m_ppc_state.gpr[3],
+                   m_ppc_state.pc, m_symbol_db.GetDescription(m_ppc_state.pc), m_ppc_state.gpr[3],
                    m_ppc_state.gpr[4], m_ppc_state.gpr[5], m_ppc_state.gpr[6], m_ppc_state.gpr[7],
                    m_ppc_state.gpr[8], m_ppc_state.gpr[9], m_ppc_state.gpr[10], m_ppc_state.gpr[11],
                    m_ppc_state.gpr[12], LR(m_ppc_state));
   }
-  if (m_breakpoints.IsTempBreakPoint(m_ppc_state.pc))
-    m_breakpoints.Remove(m_ppc_state.pc);
+  if (bp->break_on_hit)
+  {
+    API::GetEventHub().EmitEvent(API::Events::CodeBreakpoint{m_ppc_state.pc});
+    return true;
+  }
+  return false;
+}
+
+bool PowerPCManager::CheckAndHandleBreakPoints()
+{
+  if (CheckBreakPoints())
+  {
+    m_system.GetCPU().Break();
+    if (GDBStub::IsActive())
+      GDBStub::TakeControl();
+    return true;
+  }
+  return false;
 }
 
 void PowerPCState::SetSR(u32 index, u32 value)
@@ -686,6 +690,36 @@ void RoundingModeUpdated(PowerPCState& ppc_state)
   Common::FPU::SetSIMDMode(ppc_state.fpscr.RN, ppc_state.fpscr.NI);
 }
 
+void MSRUpdated(PowerPCState& ppc_state)
+{
+  static_assert(UReg_MSR{}.DR.StartBit() == 4);
+  static_assert(UReg_MSR{}.IR.StartBit() == 5);
+  static_assert(FEATURE_FLAG_MSR_DR == 1 << 0);
+  static_assert(FEATURE_FLAG_MSR_IR == 1 << 1);
+
+  ppc_state.feature_flags = static_cast<CPUEmuFeatureFlags>(
+      (ppc_state.feature_flags & FEATURE_FLAG_PERFMON) | ((ppc_state.msr.Hex >> 4) & 0x3));
+}
+
+void MMCRUpdated(PowerPCState& ppc_state)
+{
+  const bool perfmon = ppc_state.spr[SPR_MMCR0] || ppc_state.spr[SPR_MMCR1];
+  ppc_state.feature_flags = static_cast<CPUEmuFeatureFlags>(
+      (ppc_state.feature_flags & ~FEATURE_FLAG_PERFMON) | (perfmon ? FEATURE_FLAG_PERFMON : 0));
+}
+
+void RecalculateAllFeatureFlags(PowerPCState& ppc_state)
+{
+  static_assert(UReg_MSR{}.DR.StartBit() == 4);
+  static_assert(UReg_MSR{}.IR.StartBit() == 5);
+  static_assert(FEATURE_FLAG_MSR_DR == 1 << 0);
+  static_assert(FEATURE_FLAG_MSR_IR == 1 << 1);
+
+  const bool perfmon = ppc_state.spr[SPR_MMCR0] || ppc_state.spr[SPR_MMCR1];
+  ppc_state.feature_flags = static_cast<CPUEmuFeatureFlags>(((ppc_state.msr.Hex >> 4) & 0x3) |
+                                                            (perfmon ? FEATURE_FLAG_PERFMON : 0));
+}
+
 void CheckExceptionsFromJIT(PowerPCManager& power_pc)
 {
   power_pc.CheckExceptions();
@@ -696,8 +730,8 @@ void CheckExternalExceptionsFromJIT(PowerPCManager& power_pc)
   power_pc.CheckExternalExceptions();
 }
 
-void CheckBreakPointsFromJIT(PowerPCManager& power_pc)
+void CheckAndHandleBreakPointsFromJIT(PowerPCManager& power_pc)
 {
-  power_pc.CheckBreakPoints();
+  power_pc.CheckAndHandleBreakPoints();
 }
 }  // namespace PowerPC

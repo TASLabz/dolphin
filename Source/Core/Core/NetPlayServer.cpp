@@ -18,6 +18,7 @@
 #include <vector>
 
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 
 #include "Common/CommonPaths.h"
 #include "Common/ENet.h"
@@ -133,7 +134,8 @@ NetPlayServer::NetPlayServer(const u16 port, const bool forward_port, NetPlayUI*
   if (traversal_config.use_traversal)
   {
     if (!Common::EnsureTraversalClient(traversal_config.traversal_host,
-                                       traversal_config.traversal_port, port))
+                                       traversal_config.traversal_port,
+                                       traversal_config.traversal_port_alt, port))
     {
       return;
     }
@@ -282,7 +284,7 @@ void NetPlayServer::ThreadFunc()
         auto& e = m_async_queue.Front();
         if (e.target_mode == TargetMode::Only)
         {
-          if (m_players.find(e.target_pid) != m_players.end())
+          if (m_players.contains(e.target_pid))
             Send(m_players.at(e.target_pid).socket, e.packet, e.channel_id);
         }
         else
@@ -386,7 +388,11 @@ void NetPlayServer::ThreadFunc()
       }
       break;
       default:
-        ERROR_LOG_FMT(NETPLAY, "enet_host_service: unknown event type: {}", int(netEvent.type));
+        // not a valid switch case due to not technically being part of the enum
+        if (static_cast<int>(netEvent.type) == Common::ENet::SKIPPABLE_EVENT)
+          INFO_LOG_FMT(NETPLAY, "enet_host_service: skippable packet event");
+        else
+          ERROR_LOG_FMT(NETPLAY, "enet_host_service: unknown event type: {}", int(netEvent.type));
         break;
       }
     }
@@ -782,7 +788,7 @@ unsigned int NetPlayServer::OnData(sf::Packet& packet, Client& player)
     u32 cid;
     packet >> cid;
 
-    if (m_chunked_data_complete_count.find(cid) != m_chunked_data_complete_count.end())
+    if (m_chunked_data_complete_count.contains(cid))
     {
       m_chunked_data_complete_count[cid]++;
       m_chunked_data_complete_event.Set();
@@ -827,7 +833,7 @@ unsigned int NetPlayServer::OnData(sf::Packet& packet, Client& player)
     if (m_host_input_authority)
     {
       // Prevent crash before game stop if the golfer disconnects
-      if (m_current_golfer != 0 && m_players.find(m_current_golfer) != m_players.end())
+      if (m_current_golfer != 0 && m_players.contains(m_current_golfer))
         Send(m_players.at(m_current_golfer).socket, spac);
     }
     else
@@ -912,7 +918,7 @@ unsigned int NetPlayServer::OnData(sf::Packet& packet, Client& player)
     packet >> pid;
 
     // Check if player ID is valid and sender isn't a spectator
-    if (!m_players.count(pid) || !PlayerHasControllerMapped(player.pid))
+    if (!m_players.contains(pid) || !PlayerHasControllerMapped(player.pid))
       break;
 
     if (m_host_input_authority && m_settings.golf_mode && m_pending_golfer == 0 &&
@@ -1264,6 +1270,11 @@ void NetPlayServer::OnTraversalStateChanged()
   m_dialog->OnTraversalStateChanged(state);
 }
 
+void NetPlayServer::OnTtlDetermined(u8 ttl)
+{
+  m_dialog->OnTtlDetermined(ttl);
+}
+
 // called from ---GUI--- thread
 void NetPlayServer::SendChatMessage(const std::string& msg)
 {
@@ -1346,7 +1357,7 @@ bool NetPlayServer::SetupNetSettings()
   // Copy all relevant settings
   settings.cpu_thread = Config::Get(Config::MAIN_CPU_THREAD);
   settings.cpu_core = Config::Get(Config::MAIN_CPU_CORE);
-  settings.enable_cheats = Config::Get(Config::MAIN_ENABLE_CHEATS);
+  settings.enable_cheats = Config::AreCheatsEnabled();
   settings.selected_language = Config::Get(Config::MAIN_GC_LANGUAGE);
   settings.override_region_settings = Config::Get(Config::MAIN_OVERRIDE_REGION_SETTINGS);
   settings.dsp_hle = Config::Get(Config::MAIN_DSP_HLE);
@@ -2284,8 +2295,9 @@ std::unordered_set<std::string> NetPlayServer::GetInterfaceSet() const
 // called from ---GUI--- thread
 std::string NetPlayServer::GetInterfaceHost(const std::string& inter) const
 {
-  char buf[16];
-  sprintf(buf, ":%d", GetPort());
+  char buf[16]{};
+  fmt::format_to_n(buf, sizeof(buf) - 1, ":{}", GetPort());
+
   auto lst = GetInterfaceListInternal();
   for (const auto& list_entry : lst)
   {
@@ -2415,7 +2427,7 @@ void NetPlayServer::ChunkedDataThreadFunc()
         }
         if (e.target_mode == TargetMode::Only)
         {
-          if (m_players.find(e.target_pid) == m_players.end())
+          if (!m_players.contains(e.target_pid))
           {
             skip_wait = true;
             break;

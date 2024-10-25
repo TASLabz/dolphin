@@ -12,7 +12,8 @@
 #include <fmt/ostream.h>
 
 #include "Common/StringUtil.h"
-#include "DiscIO/VolumeDisc.h"
+#include "Core/AchievementManager.h"
+#include "DiscIO/Volume.h"
 #include "DiscIO/VolumeVerifier.h"
 #include "UICommon/UICommon.h"
 
@@ -89,7 +90,7 @@ int VerifyCommand(const std::vector<std::string>& args)
   parser.add_option("-i", "--input")
       .type("string")
       .action("store")
-      .help("Path to disc image FILE.")
+      .help("Path to input file.")
       .metavar("FILE");
 
   parser.add_option("-a", "--algorithm")
@@ -97,7 +98,7 @@ int VerifyCommand(const std::vector<std::string>& args)
       .action("store")
       .help("Optional. Compute and print the digest using the selected algorithm, then exit. "
             "[%choices]")
-      .choices({"crc32", "md5", "sha1"});
+      .choices({"crc32", "md5", "sha1", "rchash"});
 
   const optparse::Values& options = parser.parse_args(args);
 
@@ -114,6 +115,9 @@ int VerifyCommand(const std::vector<std::string>& args)
   }
   const std::string& input_file_path = options["input"];
 
+  bool rc_hash_calculate = false;
+  std::string rc_hash_result = "0";
+
   DiscIO::Hashes<bool> hashes_to_calculate{};
   const bool algorithm_is_set = options.is_set("algorithm");
   if (!algorithm_is_set)
@@ -129,9 +133,12 @@ int VerifyCommand(const std::vector<std::string>& args)
       hashes_to_calculate.md5 = true;
     else if (algorithm == "sha1")
       hashes_to_calculate.sha1 = true;
+    else if (algorithm == "rchash")
+      rc_hash_calculate = true;
   }
 
-  if (!hashes_to_calculate.crc32 && !hashes_to_calculate.md5 && !hashes_to_calculate.sha1)
+  if (!hashes_to_calculate.crc32 && !hashes_to_calculate.md5 && !hashes_to_calculate.sha1 &&
+      !rc_hash_calculate)
   {
     // optparse should protect from this
     fmt::print(std::cerr, "Error: No algorithms selected for the operation\n");
@@ -139,10 +146,10 @@ int VerifyCommand(const std::vector<std::string>& args)
   }
 
   // Open the volume
-  const std::unique_ptr<DiscIO::VolumeDisc> volume = DiscIO::CreateDisc(input_file_path);
+  const std::unique_ptr<DiscIO::Volume> volume = DiscIO::CreateVolume(input_file_path);
   if (!volume)
   {
-    fmt::print(std::cerr, "Error: Unable to open disc image\n");
+    fmt::print(std::cerr, "Error: Unable to open input file\n");
     return EXIT_FAILURE;
   }
 
@@ -155,6 +162,12 @@ int VerifyCommand(const std::vector<std::string>& args)
   }
   verifier.Finish();
   const DiscIO::VolumeVerifier::Result& result = verifier.GetResult();
+
+  // Calculate rcheevos hash
+  if (rc_hash_calculate)
+  {
+    rc_hash_result = AchievementManager::CalculateHash(input_file_path);
+  }
 
   // Print the report
   if (!algorithm_is_set)
@@ -169,6 +182,8 @@ int VerifyCommand(const std::vector<std::string>& args)
       fmt::print(std::cout, "{}\n", HashToHexString(result.hashes.md5));
     else if (hashes_to_calculate.sha1 && !result.hashes.sha1.empty())
       fmt::print(std::cout, "{}\n", HashToHexString(result.hashes.sha1));
+    else if (rc_hash_calculate)
+      fmt::print(std::cout, "{}\n", rc_hash_result);
     else
     {
       fmt::print(std::cerr, "Error: No hash computed\n");

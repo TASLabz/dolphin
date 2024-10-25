@@ -52,7 +52,7 @@ ShaderCode GenVertexShader(APIType api_type, const ShaderHostConfig& host_config
 
   if (vertex_loader)
   {
-    out.Write("UBO_BINDING(std140, 3) uniform GSBlock {{\n");
+    out.Write("UBO_BINDING(std140, 4) uniform GSBlock {{\n");
     out.Write("{}", s_geometry_shader_uniforms);
     out.Write("}};\n");
   }
@@ -84,7 +84,7 @@ SSBO_BINDING(1) readonly restrict buffer Vertices {{
       // D3D12 uses a root constant for this uniform, since it changes with every draw.
       // D3D11 doesn't currently support dynamic vertex loader, and we'll have to figure something
       // out for it if we want to support it in the future.
-      out.Write("UBO_BINDING(std140, 4) uniform DX_Constants {{\n"
+      out.Write("UBO_BINDING(std140, 5) uniform DX_Constants {{\n"
                 "  uint base_vertex;\n"
                 "}};\n\n"
                 "uint GetVertexBaseOffset(uint vertex_id) {{\n"
@@ -101,7 +101,7 @@ SSBO_BINDING(1) readonly restrict buffer Vertices {{
     out.Write(R"(
 uint4 load_input_uint4_ubyte4(uint vtx_offset, uint attr_offset) {{
   uint value = vertex_buffer[vtx_offset + attr_offset];
-  return uint4(value & 0xff, (value >> 8) & 0xff, (value >> 16) & 0xff, value >> 24);
+  return uint4(value & 0xffu, (value >> 8) & 0xffu, (value >> 16) & 0xffu, value >> 24);
 }}
 
 float4 load_input_float4_ubyte4(uint vtx_offset, uint attr_offset) {{
@@ -251,47 +251,53 @@ float3 load_input_float3_rawtex(uint vtx_offset, uint attr_offset) {{
             "o.pos = float4(dot(" I_PROJECTION "[0], pos), dot(" I_PROJECTION
             "[1], pos), dot(" I_PROJECTION "[2], pos), dot(" I_PROJECTION "[3], pos));\n"
             "\n"
+            "float3 _rawnormal;\n"
+            "float3 _rawtangent;\n"
+            "float3 _rawbinormal;\n"
+            "if ((components & {}u) != 0u) // VB_HAS_NORMAL\n"
+            "{{\n",
+            Common::ToUnderlying(VB_HAS_NORMAL));
+  LoadVertexAttribute(out, host_config, 2, "rawnormal", "float3", "float3");
+  out.Write("  _rawnormal = rawnormal;\n"
+            "}}\n"
+            "else\n"
+            "{{\n"
+            "  _rawnormal = " I_CACHED_NORMAL ".xyz;\n"
+            "}}\n"
+            "\n"
+            "if ((components & {}u) != 0u) // VB_HAS_TANGENT\n"
+            "{{\n",
+            Common::ToUnderlying(VB_HAS_TANGENT));
+  LoadVertexAttribute(out, host_config, 2, "rawtangent", "float3", "float3");
+  out.Write("  _rawtangent = rawtangent;\n"
+            "}}\n"
+            "else\n"
+            "{{\n"
+            "  _rawtangent = " I_CACHED_TANGENT ".xyz;\n"
+            "}}\n"
+            "\n"
+            "if ((components & {}u) != 0u) // VB_HAS_BINORMAL\n"
+            "{{\n",
+            Common::ToUnderlying(VB_HAS_BINORMAL));
+  LoadVertexAttribute(out, host_config, 2, "rawbinormal", "float3", "float3");
+  out.Write("  _rawbinormal = rawbinormal;\n"
+            "}}\n"
+            "else\n"
+            "{{\n"
+            "  _rawbinormal = " I_CACHED_BINORMAL ".xyz;\n"
+            "}}\n"
+            "\n"
             "// The scale of the transform matrix is used to control the size of the emboss map\n"
             "// effect by changing the scale of the transformed binormals (which only get used by\n"
             "// emboss map texgens). By normalising the first transformed normal (which is used\n"
             "// by lighting calculations and needs to be unit length), the same transform matrix\n"
             "// can do double duty, scaling for emboss mapping, and not scaling for lighting.\n"
-            "float3 _normal = float3(0.0, 0.0, 0.0);\n"
-            "if ((components & {}u) != 0u) // VB_HAS_NORMAL\n"
-            "{{\n",
-            Common::ToUnderlying(VB_HAS_NORMAL));
-  LoadVertexAttribute(out, host_config, 2, "rawnormal", "float3", "float3");
-  out.Write("  _normal = normalize(float3(dot(N0, rawnormal), dot(N1, rawnormal), dot(N2, "
-            "rawnormal)));\n"
-            "}}\n"
-            "\n"
-            "float3 _tangent = float3(0.0, 0.0, 0.0);\n"
-            "if ((components & {}u) != 0u) // VB_HAS_TANGENT\n"
-            "{{\n",
-            Common::ToUnderlying(VB_HAS_TANGENT));
-  LoadVertexAttribute(out, host_config, 2, "rawtangent", "float3", "float3");
-  out.Write("  _tangent = float3(dot(N0, rawtangent), dot(N1, rawtangent), dot(N2, rawtangent));\n"
-            "}}\n"
-            "else\n"
-            "{{\n"
-            "  _tangent = float3(dot(N0, " I_CACHED_TANGENT ".xyz), dot(N1, " I_CACHED_TANGENT
-            ".xyz), dot(N2, " I_CACHED_TANGENT ".xyz));\n"
-            "}}\n"
-            "\n"
-            "float3 _binormal = float3(0.0, 0.0, 0.0);\n"
-            "if ((components & {}u) != 0u) // VB_HAS_BINORMAL\n"
-            "{{\n",
-            Common::ToUnderlying(VB_HAS_BINORMAL));
-  LoadVertexAttribute(out, host_config, 2, "rawbinormal", "float3", "float3");
-  out.Write("  _binormal = float3(dot(N0, rawbinormal), dot(N1, rawbinormal), dot(N2, "
-            "rawbinormal));\n"
-            "}}\n"
-            "else\n"
-            "{{\n"
-            "  _binormal = float3(dot(N0, " I_CACHED_BINORMAL ".xyz), dot(N1, " I_CACHED_BINORMAL
-            ".xyz), dot(N2, " I_CACHED_BINORMAL ".xyz));\n"
-            "}}\n"
-            "\n");
+            "float3 _normal = normalize(float3(dot(N0, _rawnormal), dot(N1, _rawnormal), dot(N2, "
+            "_rawnormal)));\n"
+            "float3 _tangent = float3(dot(N0, _rawtangent), dot(N1, _rawtangent), dot(N2, "
+            "_rawtangent));\n"
+            "float3 _binormal = float3(dot(N0, _rawbinormal), dot(N1, _rawbinormal), dot(N2, "
+            "_rawbinormal));\n");
 
   // Hardware Lighting
   out.Write("// xfmem.numColorChans controls the number of color channels available to TEV,\n"

@@ -16,9 +16,11 @@
 #include "Common/GekkoDisassembler.h"
 #include "Common/StringUtil.h"
 
+#include "Core/AchievementManager.h"
 #include "Core/Config/MainSettings.h"
 #include "Core/Core.h"
 #include "Core/Debugger/OSThread.h"
+#include "Core/HW/CPU.h"
 #include "Core/HW/DSP.h"
 #include "Core/PatchEngine.h"
 #include "Core/PowerPC/MMU.h"
@@ -29,6 +31,9 @@
 void ApplyMemoryPatch(const Core::CPUThreadGuard& guard, Common::Debug::MemoryPatch& patch,
                       bool store_existing_value)
 {
+  if (AchievementManager::GetInstance().IsHardcoreModeActive())
+    return;
+
   if (patch.value.empty())
     return;
 
@@ -85,7 +90,8 @@ void PPCPatches::UnPatch(std::size_t index)
   PatchEngine::RemoveMemoryPatch(index);
 }
 
-PPCDebugInterface::PPCDebugInterface(Core::System& system) : m_system(system)
+PPCDebugInterface::PPCDebugInterface(Core::System& system, PPCSymbolDB& ppc_symbol_db)
+    : m_system(system), m_ppc_symbol_db(ppc_symbol_db)
 {
 }
 
@@ -328,7 +334,7 @@ u32 PPCDebugInterface::ReadExtraMemory(const Core::CPUThreadGuard& guard, int me
     return PowerPC::MMU::HostRead_U32(guard, address);
   case 1:
   {
-    auto& dsp = Core::System::GetInstance().GetDSP();
+    const auto& dsp = guard.GetSystem().GetDSP();
     return (dsp.ReadARAM(address) << 24) | (dsp.ReadARAM(address + 1) << 16) |
            (dsp.ReadARAM(address + 2) << 8) | (dsp.ReadARAM(address + 3));
   }
@@ -344,7 +350,7 @@ u32 PPCDebugInterface::ReadInstruction(const Core::CPUThreadGuard& guard, u32 ad
 
 bool PPCDebugInterface::IsAlive() const
 {
-  return Core::IsRunningAndStarted();
+  return Core::IsRunning(m_system);
 }
 
 bool PPCDebugInterface::IsBreakpoint(u32 address) const
@@ -352,12 +358,12 @@ bool PPCDebugInterface::IsBreakpoint(u32 address) const
   return m_system.GetPowerPC().GetBreakPoints().IsAddressBreakPoint(address);
 }
 
-void PPCDebugInterface::SetBreakpoint(u32 address)
+void PPCDebugInterface::AddBreakpoint(u32 address)
 {
   m_system.GetPowerPC().GetBreakPoints().Add(address);
 }
 
-void PPCDebugInterface::ClearBreakpoint(u32 address)
+void PPCDebugInterface::RemoveBreakpoint(u32 address)
 {
   m_system.GetPowerPC().GetBreakPoints().Remove(address);
 }
@@ -369,11 +375,7 @@ void PPCDebugInterface::ClearAllBreakpoints()
 
 void PPCDebugInterface::ToggleBreakpoint(u32 address)
 {
-  auto& breakpoints = m_system.GetPowerPC().GetBreakPoints();
-  if (breakpoints.IsAddressBreakPoint(address))
-    breakpoints.Remove(address);
-  else
-    breakpoints.Add(address);
+  m_system.GetPowerPC().GetBreakPoints().ToggleBreakPoint(address);
 }
 
 void PPCDebugInterface::ClearAllMemChecks()
@@ -418,7 +420,7 @@ u32 PPCDebugInterface::GetColor(const Core::CPUThreadGuard* guard, u32 address) 
   if (!PowerPC::MMU::HostIsRAMAddress(*guard, address))
     return 0xeeeeee;
 
-  Common::Symbol* symbol = g_symbolDB.GetSymbolFromAddr(address);
+  const Common::Symbol* const symbol = m_ppc_symbol_db.GetSymbolFromAddr(address);
   if (!symbol)
     return 0xFFFFFF;
   if (symbol->type != Common::Symbol::Type::Function)
@@ -436,15 +438,15 @@ u32 PPCDebugInterface::GetColor(const Core::CPUThreadGuard* guard, u32 address) 
 }
 // =============
 
-std::string PPCDebugInterface::GetDescription(u32 address) const
+std::string_view PPCDebugInterface::GetDescription(u32 address) const
 {
-  return g_symbolDB.GetDescription(address);
+  return m_ppc_symbol_db.GetDescription(address);
 }
 
 std::optional<u32>
 PPCDebugInterface::GetMemoryAddressFromInstruction(const std::string& instruction) const
 {
-  static const std::regex re(",[^r0-]*(-?)(0[xX]?[0-9a-fA-F]*|r\\d+)[^r^s]*.(p|toc|\\d+)");
+  static const std::regex re(",[^r0-]*(-?)(?:0[xX])?([0-9a-fA-F]+|r\\d+)[^r^s]*.(p|toc|\\d+)");
   std::smatch match;
 
   // Instructions should be identified as a load or store before using this function. This error
@@ -462,7 +464,7 @@ PPCDebugInterface::GetMemoryAddressFromInstruction(const std::string& instructio
 
   if (is_reg == offset_match[0])
   {
-    unsigned register_index;
+    unsigned register_index = 0;
     Common::FromChars(offset_match.substr(1), register_index, 10);
     offset = (register_index == 0 ? 0 : m_system.GetPPCState().gpr[register_index]);
   }
@@ -501,8 +503,11 @@ void PPCDebugInterface::SetPC(u32 address)
   m_system.GetPPCState().pc = address;
 }
 
-void PPCDebugInterface::RunToBreakpoint()
+void PPCDebugInterface::RunTo(u32 address)
 {
+  auto& breakpoints = m_system.GetPowerPC().GetBreakPoints();
+  breakpoints.SetTemporary(address);
+  m_system.GetCPU().SetStepping(false);
 }
 
 std::shared_ptr<Core::NetworkCaptureLogger> PPCDebugInterface::NetworkLogger()

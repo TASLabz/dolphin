@@ -4,13 +4,20 @@
 #include "VideoCommon/Assets/DirectFilesystemAssetLibrary.h"
 
 #include <algorithm>
-#include <fmt/os.h>
+#include <vector>
+
+#include <fmt/std.h>
 
 #include "Common/FileUtil.h"
+#include "Common/IOFile.h"
+#include "Common/JsonUtil.h"
 #include "Common/Logging/Log.h"
 #include "Common/StringUtil.h"
 #include "VideoCommon/Assets/MaterialAsset.h"
+#include "VideoCommon/Assets/MeshAsset.h"
 #include "VideoCommon/Assets/ShaderAsset.h"
+#include "VideoCommon/Assets/TextureAsset.h"
+#include "VideoCommon/RenderState.h"
 
 namespace VideoCommon
 {
@@ -127,24 +134,16 @@ CustomAssetLibrary::LoadInfo DirectFilesystemAssetLibrary::LoadPixelShader(const
     return {};
   }
 
-  std::string json_data;
-  if (!File::ReadFileToString(PathToString(metadata->second), json_data))
-  {
-    ERROR_LOG_FMT(VIDEO, "Asset '{}' error -  failed to load the json file '{}',", asset_id,
-                  PathToString(metadata->second));
-    return {};
-  }
-
   picojson::value root;
-  const auto error = picojson::parse(root, json_data);
-
-  if (!error.empty())
+  std::string error;
+  if (!JsonFromFile(PathToString(metadata->second), &root, &error))
   {
     ERROR_LOG_FMT(VIDEO,
                   "Asset '{}' error -  failed to load the json file '{}', due to parse error: {}",
                   asset_id, PathToString(metadata->second), error);
     return {};
   }
+
   if (!root.is<picojson::object>())
   {
     ERROR_LOG_FMT(
@@ -175,18 +174,21 @@ CustomAssetLibrary::LoadInfo DirectFilesystemAssetLibrary::LoadMaterial(const As
   }
   const auto& asset_path = asset_map.begin()->second;
 
-  std::string json_data;
-  if (!File::ReadFileToString(PathToString(asset_path), json_data))
+  std::size_t metadata_size;
   {
-    ERROR_LOG_FMT(VIDEO, "Asset '{}' error -  material failed to load the json file '{}',",
-                  asset_id, PathToString(asset_path));
-    return {};
+    std::error_code ec;
+    metadata_size = std::filesystem::file_size(asset_path, ec);
+    if (ec)
+    {
+      ERROR_LOG_FMT(VIDEO, "Asset '{}' error - failed to get material file size with error '{}'!",
+                    asset_id, ec);
+      return {};
+    }
   }
 
   picojson::value root;
-  const auto error = picojson::parse(root, json_data);
-
-  if (!error.empty())
+  std::string error;
+  if (!JsonFromFile(PathToString(asset_path), &root, &error))
   {
     ERROR_LOG_FMT(
         VIDEO,
@@ -214,70 +216,217 @@ CustomAssetLibrary::LoadInfo DirectFilesystemAssetLibrary::LoadMaterial(const As
     return {};
   }
 
-  return LoadInfo{json_data.size(), GetLastAssetWriteTime(asset_id)};
+  return LoadInfo{metadata_size, GetLastAssetWriteTime(asset_id)};
 }
 
-CustomAssetLibrary::LoadInfo DirectFilesystemAssetLibrary::LoadTexture(const AssetID& asset_id,
-                                                                       CustomTextureData* data)
+CustomAssetLibrary::LoadInfo DirectFilesystemAssetLibrary::LoadMesh(const AssetID& asset_id,
+                                                                    MeshData* data)
 {
   const auto asset_map = GetAssetMapForID(asset_id);
 
-  // Raw texture is expected to have one asset mapped
-  if (asset_map.empty() || asset_map.size() > 1)
+  // Asset map for a mesh is the mesh and some metadata
+  if (asset_map.size() != 2)
   {
-    ERROR_LOG_FMT(VIDEO, "Asset '{}' error - raw texture expected to have one file mapped!",
+    ERROR_LOG_FMT(VIDEO, "Asset '{}' expected to have two files mapped!", asset_id);
+    return {};
+  }
+
+  const auto metadata = asset_map.find("metadata");
+  const auto mesh = asset_map.find("mesh");
+  if (metadata == asset_map.end())
+  {
+    ERROR_LOG_FMT(VIDEO, "Asset '{}' expected to have a metadata entry mapped!", asset_id);
+    return {};
+  }
+
+  if (mesh == asset_map.end())
+  {
+    ERROR_LOG_FMT(VIDEO, "Asset '{}' expected to have a mesh entry mapped!", asset_id);
+    return {};
+  }
+
+  std::size_t metadata_size;
+  {
+    std::error_code ec;
+    metadata_size = std::filesystem::file_size(metadata->second, ec);
+    if (ec)
+    {
+      ERROR_LOG_FMT(VIDEO,
+                    "Asset '{}' error - failed to get mesh metadata file size with error '{}'!",
+                    asset_id, ec);
+      return {};
+    }
+  }
+  std::size_t mesh_size;
+  {
+    std::error_code ec;
+    mesh_size = std::filesystem::file_size(mesh->second, ec);
+    if (ec)
+    {
+      ERROR_LOG_FMT(VIDEO, "Asset '{}' error - failed to get mesh file size with error '{}'!",
+                    asset_id, ec);
+      return {};
+    }
+  }
+  const auto approx_mem_size = metadata_size + mesh_size;
+
+  File::IOFile file(PathToString(mesh->second), "rb");
+  if (!file.IsOpen())
+  {
+    ERROR_LOG_FMT(VIDEO, "Asset '{}' error - failed to open mesh file '{}'!", asset_id,
+                  PathToString(mesh->second));
+    return {};
+  }
+
+  std::vector<u8> bytes;
+  bytes.reserve(file.GetSize());
+  file.ReadBytes(bytes.data(), file.GetSize());
+  if (!MeshData::FromDolphinMesh(bytes, data))
+  {
+    ERROR_LOG_FMT(VIDEO, "Asset '{}' error -  failed to load the mesh file '{}'!", asset_id,
+                  PathToString(mesh->second));
+    return {};
+  }
+
+  picojson::value root;
+  std::string error;
+  if (!JsonFromFile(PathToString(metadata->second), &root, &error))
+  {
+    ERROR_LOG_FMT(VIDEO,
+                  "Asset '{}' error -  failed to load the json file '{}', due to parse error: {}",
+                  asset_id, PathToString(metadata->second), error);
+    return {};
+  }
+  if (!root.is<picojson::object>())
+  {
+    ERROR_LOG_FMT(
+        VIDEO,
+        "Asset '{}' error -  failed to load the json file '{}', due to root not being an object!",
+        asset_id, PathToString(metadata->second));
+    return {};
+  }
+
+  const auto& root_obj = root.get<picojson::object>();
+
+  if (!MeshData::FromJson(asset_id, root_obj, data))
+    return {};
+
+  return LoadInfo{approx_mem_size, GetLastAssetWriteTime(asset_id)};
+}
+
+CustomAssetLibrary::LoadInfo DirectFilesystemAssetLibrary::LoadTexture(const AssetID& asset_id,
+                                                                       TextureData* data)
+{
+  const auto asset_map = GetAssetMapForID(asset_id);
+
+  // Texture can optionally have a metadata file as well
+  if (asset_map.empty() || asset_map.size() > 2)
+  {
+    ERROR_LOG_FMT(VIDEO, "Asset '{}' error - raw texture expected to have one or two files mapped!",
                   asset_id);
     return {};
   }
-  const auto& asset_path = asset_map.begin()->second;
 
-  std::error_code ec;
-  const auto last_loaded_time = std::filesystem::last_write_time(asset_path, ec);
-  if (ec)
+  const auto metadata = asset_map.find("metadata");
+  const auto texture_path = asset_map.find("texture");
+
+  if (texture_path == asset_map.end())
   {
-    ERROR_LOG_FMT(VIDEO, "Asset '{}' error - failed to get last write time with error '{}'!",
-                  asset_id, ec);
+    ERROR_LOG_FMT(VIDEO, "Asset '{}' expected to have a texture entry mapped!", asset_id);
     return {};
   }
-  auto ext = PathToString(asset_path.extension());
+
+  std::size_t metadata_size = 0;
+  if (metadata != asset_map.end())
+  {
+    std::error_code ec;
+    metadata_size = std::filesystem::file_size(metadata->second, ec);
+    if (ec)
+    {
+      ERROR_LOG_FMT(VIDEO,
+                    "Asset '{}' error - failed to get texture metadata file size with error '{}'!",
+                    asset_id, ec);
+      return {};
+    }
+
+    picojson::value root;
+    std::string error;
+    if (!JsonFromFile(PathToString(metadata->second), &root, &error))
+    {
+      ERROR_LOG_FMT(VIDEO,
+                    "Asset '{}' error -  failed to load the json file '{}', due to parse error: {}",
+                    asset_id, PathToString(metadata->second), error);
+      return {};
+    }
+    if (!root.is<picojson::object>())
+    {
+      ERROR_LOG_FMT(
+          VIDEO,
+          "Asset '{}' error -  failed to load the json file '{}', due to root not being an object!",
+          asset_id, PathToString(metadata->second));
+      return {};
+    }
+
+    const auto& root_obj = root.get<picojson::object>();
+    if (!TextureData::FromJson(asset_id, root_obj, data))
+    {
+      return {};
+    }
+  }
+  else
+  {
+    data->m_sampler = RenderState::GetLinearSamplerState();
+    data->m_type = TextureData::Type::Type_Texture2D;
+  }
+
+  auto ext = PathToString(texture_path->second.extension());
   Common::ToLower(&ext);
   if (ext == ".dds")
   {
-    if (!LoadDDSTexture(data, PathToString(asset_path)))
+    if (!LoadDDSTexture(&data->m_texture, PathToString(texture_path->second)))
     {
       ERROR_LOG_FMT(VIDEO, "Asset '{}' error - could not load dds texture!", asset_id);
       return {};
     }
 
-    if (data->m_slices.empty()) [[unlikely]]
-      data->m_slices.push_back({});
+    if (data->m_texture.m_slices.empty()) [[unlikely]]
+      data->m_texture.m_slices.push_back({});
 
-    if (!LoadMips(asset_path, &data->m_slices[0]))
+    if (!LoadMips(texture_path->second, &data->m_texture.m_slices[0]))
       return {};
 
-    return LoadInfo{GetAssetSize(*data), FileTimeToSysTime(last_loaded_time)};
+    return LoadInfo{GetAssetSize(data->m_texture) + metadata_size, GetLastAssetWriteTime(asset_id)};
   }
   else if (ext == ".png")
   {
-    // If we have no slices, create one
-    if (data->m_slices.empty())
-      data->m_slices.push_back({});
+    // PNG could support more complicated texture types in the future
+    // but for now just error
+    if (data->m_type != TextureData::Type::Type_Texture2D)
+    {
+      ERROR_LOG_FMT(VIDEO, "Asset '{}' error - PNG is not supported for texture type '{}'!",
+                    asset_id, data->m_type);
+      return {};
+    }
 
-    auto& slice = data->m_slices[0];
+    // If we have no slices, create one
+    if (data->m_texture.m_slices.empty())
+      data->m_texture.m_slices.push_back({});
+
+    auto& slice = data->m_texture.m_slices[0];
     // If we have no levels, create one to pass into LoadPNGTexture
     if (slice.m_levels.empty())
       slice.m_levels.push_back({});
 
-    if (!LoadPNGTexture(&slice.m_levels[0], PathToString(asset_path)))
+    if (!LoadPNGTexture(&slice.m_levels[0], PathToString(texture_path->second)))
     {
       ERROR_LOG_FMT(VIDEO, "Asset '{}' error - could not load png texture!", asset_id);
       return {};
     }
 
-    if (!LoadMips(asset_path, &slice))
+    if (!LoadMips(texture_path->second, &slice))
       return {};
 
-    return LoadInfo{GetAssetSize(*data), FileTimeToSysTime(last_loaded_time)};
+    return LoadInfo{GetAssetSize(data->m_texture) + metadata_size, GetLastAssetWriteTime(asset_id)};
   }
 
   ERROR_LOG_FMT(VIDEO, "Asset '{}' error - extension '{}' unknown!", asset_id, ext);

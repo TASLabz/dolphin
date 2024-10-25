@@ -27,11 +27,13 @@
 #include "VideoCommon/TextureConfig.h"
 #include "VideoCommon/TextureDecoder.h"
 #include "VideoCommon/TextureInfo.h"
+#include "VideoCommon/TextureUtils.h"
 #include "VideoCommon/VideoEvents.h"
 
 class AbstractFramebuffer;
 class AbstractStagingTexture;
 class PointerWrap;
+struct SamplerState;
 struct VideoConfig;
 
 namespace VideoCommon
@@ -61,7 +63,6 @@ struct TextureAndTLUTFormat
     return texfmt == other.texfmt;
   }
 
-  bool operator!=(const TextureAndTLUTFormat& other) const { return !operator==(other); }
   TextureFormat texfmt;
   TLUTFormat tlutfmt;
 };
@@ -98,7 +99,6 @@ struct EFBCopyParams
 template <>
 struct fmt::formatter<EFBCopyParams>
 {
-  std::shared_ptr<int> state;
   constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
   template <typename FormatContext>
   auto format(const EFBCopyParams& uid, FormatContext& ctx) const
@@ -282,7 +282,7 @@ public:
   RcTcacheEntry GetXFBTexture(u32 address, u32 width, u32 height, u32 stride,
                               MathUtil::Rectangle<int>* display_rect);
 
-  virtual void BindTextures(BitSet32 used_textures);
+  virtual void BindTextures(BitSet32 used_textures, const std::array<SamplerState, 8>& samplers);
   void CopyRenderTargetToTexture(u32 dstAddr, EFBCopyFormat dstFormat, u32 width, u32 height,
                                  u32 dstStride, bool is_depth_copy,
                                  const MathUtil::Rectangle<int>& srcRect, bool isIntensity,
@@ -307,6 +307,10 @@ public:
 
   static bool AllCopyFilterCoefsNeeded(const std::array<u32, 3>& coefficients);
   static bool CopyFilterCanOverflow(const std::array<u32, 3>& coefficients);
+
+  // Get a new sampler state
+  static SamplerState GetSamplerState(u32 index, float custom_tex_scale, bool custom_tex,
+                                      bool has_arbitrary_mips);
 
 protected:
   // Decodes the specified data to the GPU texture specified by entry.
@@ -350,7 +354,7 @@ private:
   RcTcacheEntry
   CreateTextureEntry(const TextureCreationInfo& creation_info, const TextureInfo& texture_info,
                      int safety_color_sample_size,
-                     std::vector<std::shared_ptr<VideoCommon::CustomTextureData>> assets_data,
+                     std::vector<std::shared_ptr<VideoCommon::TextureData>> assets_data,
                      bool custom_arbitrary_mipmaps, bool skip_texture_dump);
 
   RcTcacheEntry GetXFBFromCache(u32 address, u32 width, u32 height, u32 stride);
@@ -363,8 +367,6 @@ private:
                                         TLUTFormat tlutfmt);
   void StitchXFBCopy(RcTcacheEntry& entry_to_update);
 
-  void DumpTexture(RcTcacheEntry& entry, std::string basename, unsigned int level,
-                   bool is_arbitrary);
   void CheckTempSize(size_t required_size);
 
   RcTcacheEntry AllocateCacheEntry(const TextureConfig& config);
@@ -462,7 +464,9 @@ private:
   void OnFrameEnd();
 
   Common::EventHook m_frame_event =
-      AfterFrameEvent::Register([this] { OnFrameEnd(); }, "TextureCache");
+      AfterFrameEvent::Register([this](Core::System&) { OnFrameEnd(); }, "TextureCache");
+
+  VideoCommon::TextureUtils::TextureDumper m_texture_dumper;
 };
 
 extern std::unique_ptr<TextureCacheBase> g_texture_cache;

@@ -30,7 +30,6 @@ struct CameraPoint
   {
     return this->position == other.position && this->size == other.size;
   }
-  constexpr bool operator!=(const CameraPoint& other) const { return !(*this == other); }
 };
 
 // Four bytes for two objects. Filled with 0xFF if empty
@@ -126,7 +125,7 @@ public:
 
   // FYI: A real wiimote normally only returns 1 point for each LED cluster (2 total).
   // Sending all 4 points can actually cause some stuttering issues.
-  static constexpr int NUM_POINTS = 2;
+  static constexpr int NUM_POINTS = 4;
 
   // Range from 0-15. Small values (2-4) seem to be very typical.
   // This is reduced based on distance from sensor bar.
@@ -136,7 +135,7 @@ public:
   void DoState(PointerWrap& p);
   static std::array<CameraPoint, NUM_POINTS> GetCameraPoints(const Common::Matrix44& transform,
                                                              Common::Vec2 field_of_view);
-  void Update(const std::array<CameraPoint, NUM_POINTS>& camera_points, const Common::Matrix44& transform, Common::Vec2 field_of_view);
+  void Update(const std::array<CameraPoint, NUM_POINTS>& camera_points);
   void SetEnabled(bool is_enabled);
 
   static constexpr u8 I2C_ADDR = 0x58;

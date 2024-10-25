@@ -36,7 +36,7 @@ ResourcePack::ResourcePack(const std::string& path) : m_path(path)
     return;
   }
 
-  if (unzLocateFile(file, "manifest.json", nullptr) == UNZ_END_OF_LIST_OF_FILE)
+  if (unzLocateFile(file, "manifest.json", 0) == UNZ_END_OF_LIST_OF_FILE)
   {
     m_valid = false;
     m_error = "Resource pack is missing a manifest.";
@@ -63,7 +63,7 @@ ResourcePack::ResourcePack(const std::string& path) : m_path(path)
     return;
   }
 
-  if (unzLocateFile(file, "logo.png", nullptr) != UNZ_END_OF_LIST_OF_FILE)
+  if (unzLocateFile(file, "logo.png", 0) != UNZ_END_OF_LIST_OF_FILE)
   {
     unz_file_info64 logo_info{};
     unzGetCurrentFileInfo64(file, &logo_info, nullptr, 0, nullptr, 0, nullptr, 0);
@@ -88,7 +88,7 @@ ResourcePack::ResourcePack(const std::string& path) : m_path(path)
     unzGetCurrentFileInfo64(file, &texture_info, filename.data(), static_cast<u16>(filename.size()),
                             nullptr, 0, nullptr, 0);
 
-    if (filename.compare(0, 9, "textures/") != 0 || texture_info.uncompressed_size == 0)
+    if (!filename.starts_with("textures/") || texture_info.uncompressed_size == 0)
       continue;
 
     // If a texture is compressed and the manifest doesn't state that, abort.
@@ -170,10 +170,9 @@ bool ResourcePack::Install(const std::string& path)
       continue;
     const std::string texture_name = texture_zip_path.substr(texture_zip_path_prefix.size());
 
-    auto texture_it = std::find_if(
-        m_textures.cbegin(), m_textures.cend(), [&texture_name](const std::string& texture) {
-          return mz_path_compare_wc(texture.c_str(), texture_name.c_str(), 1) == MZ_OK;
-        });
+    auto texture_it = std::ranges::find_if(m_textures, [&texture_name](const std::string& texture) {
+      return mz_path_compare_wc(texture.c_str(), texture_name.c_str(), 1) == MZ_OK;
+    });
     if (texture_it == m_textures.cend())
       continue;
     const auto texture = *texture_it;
@@ -305,11 +304,6 @@ bool ResourcePack::Uninstall(const std::string& path)
 bool ResourcePack::operator==(const ResourcePack& pack) const
 {
   return pack.GetPath() == m_path;
-}
-
-bool ResourcePack::operator!=(const ResourcePack& pack) const
-{
-  return !operator==(pack);
 }
 
 }  // namespace ResourcePack

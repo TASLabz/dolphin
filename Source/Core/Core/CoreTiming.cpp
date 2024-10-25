@@ -16,13 +16,16 @@
 #include "Common/Logging/Log.h"
 #include "Common/SPSCQueue.h"
 
+#include "Core/AchievementManager.h"
 #include "Core/CPUThreadConfigCallback.h"
+#include "Core/Config/AchievementSettings.h"
 #include "Core/Config/MainSettings.h"
 #include "Core/Core.h"
 #include "Core/PowerPC/PowerPC.h"
 #include "Core/System.h"
 
 #include "VideoCommon/Fifo.h"
+#include "VideoCommon/OnScreenDisplay.h"
 #include "VideoCommon/PerformanceMetrics.h"
 #include "VideoCommon/VideoBackendBase.h"
 #include "VideoCommon/VideoConfig.h"
@@ -70,7 +73,7 @@ EventType* CoreTimingManager::RegisterEvent(const std::string& name, TimedCallba
 {
   // check for existing type with same name.
   // we want event type names to remain unique so that we can use them for serialization.
-  ASSERT_MSG(POWERPC, m_event_types.find(name) == m_event_types.end(),
+  ASSERT_MSG(POWERPC, !m_event_types.contains(name),
              "CoreTiming Event \"{}\" is already registered. Events should only be registered "
              "during Init to avoid breaking save states.",
              name);
@@ -134,6 +137,15 @@ void CoreTimingManager::RefreshConfig()
   m_max_fallback = std::chrono::duration_cast<DT>(DT_ms(Config::Get(Config::MAIN_MAX_FALLBACK)));
 
   m_max_variance = std::chrono::duration_cast<DT>(DT_ms(Config::Get(Config::MAIN_TIMING_VARIANCE)));
+
+  if (AchievementManager::GetInstance().IsHardcoreModeActive() &&
+      Config::Get(Config::MAIN_EMULATION_SPEED) < 1.0f &&
+      Config::Get(Config::MAIN_EMULATION_SPEED) > 0.0f)
+  {
+    Config::SetCurrent(Config::MAIN_EMULATION_SPEED, 1.0f);
+    m_emulation_speed = 1.0f;
+    OSD::AddMessage("Minimum speed is 100% in Hardcore Mode");
+  }
 
   m_emulation_speed = Config::Get(Config::MAIN_EMULATION_SPEED);
 }
@@ -270,13 +282,12 @@ void CoreTimingManager::ScheduleEvent(s64 cycles_into_future, EventType* event_t
 
 void CoreTimingManager::RemoveEvent(EventType* event_type)
 {
-  auto itr = std::remove_if(m_event_queue.begin(), m_event_queue.end(),
-                            [&](const Event& e) { return e.type == event_type; });
+  const size_t erased =
+      std::erase_if(m_event_queue, [&](const Event& e) { return e.type == event_type; });
 
   // Removing random items breaks the invariant so we have to re-establish it.
-  if (itr != m_event_queue.end())
+  if (erased != 0)
   {
-    m_event_queue.erase(itr, m_event_queue.end());
     std::make_heap(m_event_queue.begin(), m_event_queue.end(), std::greater<Event>());
   }
 }
@@ -452,17 +463,15 @@ void CoreTimingManager::AdjustEventQueueTimes(u32 new_ppc_clock, u32 old_ppc_clo
 
 void CoreTimingManager::Idle()
 {
-  auto& system = m_system;
-  auto& ppc_state = m_system.GetPPCState();
-
   if (m_config_sync_on_skip_idle)
   {
     // When the FIFO is processing data we must not advance because in this way
     // the VI will be desynchronized. So, We are waiting until the FIFO finish and
     // while we process only the events required by the FIFO.
-    system.GetFifo().FlushGpu(system);
+    m_system.GetFifo().FlushGpu();
   }
 
+  auto& ppc_state = m_system.GetPPCState();
   PowerPC::UpdatePerformanceMonitor(ppc_state.downcount, 0, 0, ppc_state);
   m_idled_cycles += DowncountToCycles(ppc_state.downcount);
   ppc_state.downcount = 0;

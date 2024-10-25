@@ -28,6 +28,7 @@
 #include "Core/Config/MainSettings.h"
 #include "Core/Core.h"
 #include "Core/DolphinAnalytics.h"
+#include "Core/System.h"
 
 #include "DolphinQt/Host.h"
 #include "DolphinQt/MainWindow.h"
@@ -39,9 +40,9 @@
 #include "DolphinQt/Translation.h"
 #include "DolphinQt/Updater.h"
 
+#include "Scripting/ScriptingEngine.h"
 #include "UICommon/CommandLineParse.h"
 #include "UICommon/UICommon.h"
-#include "Scripting/ScriptingEngine.h"
 
 static bool QtMsgAlertHandler(const char* caption, const char* text, bool yes_no,
                               Common::MsgType style)
@@ -52,7 +53,7 @@ static bool QtMsgAlertHandler(const char* caption, const char* text, bool yes_no
   std::optional<bool> r = RunOnObject(QApplication::instance(), [&] {
     // If we were called from the CPU/GPU thread, set us as the CPU/GPU thread.
     // This information is used in order to avoid deadlocks when calling e.g.
-    // Host::SetRenderFocus or Core::RunAsCPUThread. (Host::SetRenderFocus
+    // Host::SetRenderFocus or Core::CPUThreadGuard. (Host::SetRenderFocus
     // can get called automatically when a dialog steals the focus.)
 
     Common::ScopeGuard cpu_scope_guard(&Core::UndeclareAsCPUThread);
@@ -180,7 +181,7 @@ int main(int argc, char* argv[])
   // Whenever the event loop is about to go to sleep, dispatch the jobs
   // queued in the Core first.
   QObject::connect(QAbstractEventDispatcher::instance(), &QAbstractEventDispatcher::aboutToBlock,
-                   &app, &Core::HostDispatchJobs);
+                   &app, [] { Core::HostDispatchJobs(Core::System::GetInstance()); });
 
   std::optional<std::string> save_state_path;
   if (options.is_set("save_state"))
@@ -256,11 +257,9 @@ int main(int argc, char* argv[])
     DolphinAnalytics::Instance().ReportDolphinStart("qt");
 
     Settings::Instance().InitDefaultPalette();
-    Settings::Instance().UpdateSystemDark();
-    Settings::Instance().SetCurrentUserStyle(Settings::Instance().GetCurrentUserStyle());
-    MainWindow win{std::move(boot), static_cast<const char*>(options.get("movie")),
-                   script_filepath};
-    win.Show();
+    Settings::Instance().ApplyStyle();
+
+    MainWindow win{std::move(boot), static_cast<const char*>(options.get("movie"))};
 
 #if defined(USE_ANALYTICS) && USE_ANALYTICS
     if (!Config::Get(Config::MAIN_ANALYTICS_PERMISSION_ASKED))
@@ -303,7 +302,7 @@ int main(int argc, char* argv[])
     retval = app.exec();
   }
 
-  Core::Shutdown();
+  Core::Shutdown(Core::System::GetInstance());
   UICommon::Shutdown();
   Host::GetInstance()->deleteLater();
 

@@ -3,10 +3,10 @@
 
 #pragma once
 
+#include <bit>
 #include <cmath>
 #include <limits>
 
-#include "Common/BitUtils.h"
 #include "Common/CPUDetect.h"
 #include "Common/CommonTypes.h"
 #include "Common/FloatUtils.h"
@@ -59,13 +59,13 @@ inline float ForceSingle(const UReg_FPSCR& fpscr, double value)
 
     constexpr u64 smallest_normal_single = 0x3810000000000000;
     const u64 value_without_sign =
-        Common::BitCast<u64>(value) & (Common::DOUBLE_EXP | Common::DOUBLE_FRAC);
+        std::bit_cast<u64>(value) & (Common::DOUBLE_EXP | Common::DOUBLE_FRAC);
 
     if (value_without_sign < smallest_normal_single)
     {
-      const u64 flushed_double = Common::BitCast<u64>(value) & Common::DOUBLE_SIGN;
+      const u64 flushed_double = std::bit_cast<u64>(value) & Common::DOUBLE_SIGN;
       const u32 flushed_single = static_cast<u32>(flushed_double >> 32);
-      return Common::BitCast<float>(flushed_single);
+      return std::bit_cast<float>(flushed_single);
     }
   }
 
@@ -90,18 +90,44 @@ inline double ForceDouble(const UReg_FPSCR& fpscr, double d)
 
 inline double Force25Bit(double d)
 {
-  u64 integral = Common::BitCast<u64>(d);
+  u64 integral = std::bit_cast<u64>(d);
 
-  integral = (integral & 0xFFFFFFFFF8000000ULL) + (integral & 0x8000000);
+  u64 exponent = integral & Common::DOUBLE_EXP;
+  u64 fraction = integral & Common::DOUBLE_FRAC;
 
-  return Common::BitCast<double>(integral);
+  if (exponent == 0 && fraction != 0)
+  {
+    // Subnormals get "normalized" before they're rounded
+    // In the end, this practically just means that the rounding is
+    // at a different bit
+
+    s64 keep_mask = 0xFFFFFFFFF8000000LL;
+    u64 round = 0x8000000;
+
+    // Shift the mask and rounding bit to the right until
+    // the fraction is "normal"
+    // That is to say shifting it until the MSB of the fraction
+    // would escape into the exponent
+    u32 shift = std::countl_zero(fraction) - (63 - Common::DOUBLE_FRAC_WIDTH);
+    keep_mask >>= shift;
+    round >>= shift;
+
+    // Round using these shifted values
+    integral = (integral & keep_mask) + (integral & round);
+  }
+  else
+  {
+    integral = (integral & 0xFFFFFFFFF8000000ULL) + (integral & 0x8000000);
+  }
+
+  return std::bit_cast<double>(integral);
 }
 
 inline double MakeQuiet(double d)
 {
-  const u64 integral = Common::BitCast<u64>(d) | Common::DOUBLE_QBIT;
+  const u64 integral = std::bit_cast<u64>(d) | Common::DOUBLE_QBIT;
 
-  return Common::BitCast<double>(integral);
+  return std::bit_cast<double>(integral);
 }
 
 // these functions allow globally modify operations behaviour

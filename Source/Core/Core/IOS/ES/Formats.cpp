@@ -73,11 +73,6 @@ bool operator==(const Content& lhs, const Content& rhs)
   return fields(lhs) == fields(rhs);
 }
 
-bool operator!=(const Content& lhs, const Content& rhs)
-{
-  return !operator==(lhs, rhs);
-}
-
 SignedBlobReader::SignedBlobReader(std::vector<u8> bytes) : m_bytes(std::move(bytes))
 {
 }
@@ -509,7 +504,7 @@ HLE::ReturnCode TicketReader::Unpersonalise(HLE::IOSC& iosc)
   using namespace HLE;
   IOSC::Handle public_handle;
   ReturnCode ret =
-      iosc.CreateObject(&public_handle, IOSC::TYPE_PUBLIC_KEY, IOSC::SUBTYPE_ECC233, PID_ES);
+      iosc.CreateObject(&public_handle, IOSC::TYPE_PUBLIC_KEY, IOSC::ObjectSubType::ECC233, PID_ES);
   if (ret != IPC_SUCCESS)
     return ret;
 
@@ -519,7 +514,7 @@ HLE::ReturnCode TicketReader::Unpersonalise(HLE::IOSC& iosc)
     return ret;
 
   IOSC::Handle key_handle;
-  ret = iosc.CreateObject(&key_handle, IOSC::TYPE_SECRET_KEY, IOSC::SUBTYPE_AES128, PID_ES);
+  ret = iosc.CreateObject(&key_handle, IOSC::TYPE_SECRET_KEY, IOSC::ObjectSubType::AES128, PID_ES);
   if (ret != IPC_SUCCESS)
     return ret;
 
@@ -614,9 +609,7 @@ std::string SharedContentMap::AddSharedContent(const std::array<u8, 20>& sha1)
 
 bool SharedContentMap::DeleteSharedContent(const std::array<u8, 20>& sha1)
 {
-  m_entries.erase(std::remove_if(m_entries.begin(), m_entries.end(),
-                                 [&sha1](const auto& entry) { return entry.sha1 == sha1; }),
-                  m_entries.end());
+  std::erase_if(m_entries, [&sha1](const auto& entry) { return entry.sha1 == sha1; });
   return WriteEntries();
 }
 
@@ -728,7 +721,7 @@ CertReader::CertReader(std::vector<u8>&& bytes) : SignedBlobReader(std::move(byt
       {SignatureType::ECC, PublicKeyType::ECC, sizeof(CertECC)},
   }};
 
-  const auto info = std::find_if(types.cbegin(), types.cend(), [this](const CertStructInfo& entry) {
+  const auto info = std::ranges::find_if(types, [this](const CertStructInfo& entry) {
     return m_bytes.size() >= std::get<2>(entry) && std::get<0>(entry) == GetSignatureType() &&
            std::get<1>(entry) == GetPublicKeyType();
   });

@@ -105,16 +105,16 @@ static PyObject* open_file(PyObject* module, PyObject* args)
 static PyObject* toggle_play(PyObject* module, PyObject* args)
 {
   // Play/Pause can only be done on the host thread
-  Core::QueueHostJob([]() {
-    Core::State current_state = Core::GetState();
+  Core::QueueHostJob([](Core::System& system) {
+    Core::State current_state = GetState(system);
 
     switch (current_state)
     {
     case Core::State::Paused:
-      Core::SetState(Core::State::Running);
+      Core::SetState(system, Core::State::Running);
       break;
     case Core::State::Running:
-      Core::SetState(Core::State::Paused);
+      Core::SetState(system, Core::State::Paused);
       break;
     default:
       break;

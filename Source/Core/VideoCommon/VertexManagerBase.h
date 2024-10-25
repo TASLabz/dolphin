@@ -15,9 +15,12 @@
 #include "VideoCommon/ShaderCache.h"
 #include "VideoCommon/VideoEvents.h"
 
+struct CustomPixelShaderContents;
 class CustomShaderCache;
 class DataReader;
+class GeometryShaderManager;
 class NativeVertexFormat;
+class PixelShaderManager;
 class PointerWrap;
 struct PortableVertexDeclaration;
 
@@ -42,7 +45,7 @@ enum TexelBufferFormat : u32
 namespace OpcodeDecoder
 {
 enum class Primitive : u8;
-};
+}
 
 class VertexManagerBase
 {
@@ -76,6 +79,8 @@ private:
       {
         return normal_vertex_count + anamorphic_vertex_count + other_vertex_count;
       }
+
+      MathUtil::RunningMean<float> average_ratio;
     };
 
     ProjectionCounts perspective;
@@ -171,7 +176,6 @@ protected:
   static void InvalidateConstants();
 
   // Prepares the buffer for the next batch of vertices.
-  // You may use up to the number of vertices and indices in the request
   virtual void ResetBuffer(u32 vertex_stride, u32 nvertices = MAX_PRIMITIVES_PER_COMMAND,
                            u32 nindices = MAXIBUFFERSIZE);
 
@@ -189,7 +193,7 @@ protected:
   u32 GetRemainingIndices(OpcodeDecoder::Primitive primitive) const;
 
   void CalculateZSlope(NativeVertexFormat* format);
-  void CalculateBinormals(NativeVertexFormat* format);
+  void CalculateNormals(NativeVertexFormat* format);
 
   BitSet32 UsedTextures() const;
 
@@ -220,8 +224,19 @@ private:
   // Minimum number of draws per command buffer when attempting to preempt a readback operation.
   static constexpr u32 MINIMUM_DRAW_CALLS_PER_COMMAND_BUFFER_FOR_READBACK = 10;
 
+  void RenderDrawCall(PixelShaderManager& pixel_shader_manager,
+                      GeometryShaderManager& geometry_shader_manager,
+                      const CustomPixelShaderContents& custom_pixel_shader_contents,
+                      std::span<u8> custom_pixel_shader_uniforms, PrimitiveType primitive_type,
+                      const AbstractPipeline* current_pipeline);
   void UpdatePipelineConfig();
   void UpdatePipelineObject();
+
+  const AbstractPipeline*
+  GetCustomPipeline(const CustomPixelShaderContents& custom_pixel_shader_contents,
+                    const VideoCommon::GXPipelineUid& current_pipeline_config,
+                    const VideoCommon::GXUberPipelineUid& current_uber_pipeline_confi,
+                    const AbstractPipeline* current_pipeline) const;
 
   bool m_is_flushed = true;
   FlushStatistics m_flush_statistics = {};
@@ -235,7 +250,7 @@ private:
   bool m_allow_background_execution = true;
 
   std::unique_ptr<CustomShaderCache> m_custom_shader_cache;
-  u64 m_ticks_elapsed;
+  u64 m_ticks_elapsed = 0;
 
   Common::EventHook m_frame_end_event;
   Common::EventHook m_after_present_event;

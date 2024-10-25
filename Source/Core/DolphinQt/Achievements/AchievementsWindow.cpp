@@ -6,15 +6,23 @@
 
 #include <mutex>
 
+#include <rcheevos/include/rc_error.h>
+
 #include <QDialogButtonBox>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QTabWidget>
 #include <QVBoxLayout>
 
+#include "Core/AchievementManager.h"
+
 #include "DolphinQt/Achievements/AchievementHeaderWidget.h"
+#include "DolphinQt/Achievements/AchievementLeaderboardWidget.h"
 #include "DolphinQt/Achievements/AchievementProgressWidget.h"
 #include "DolphinQt/Achievements/AchievementSettingsWidget.h"
 #include "DolphinQt/QtUtils/QueueOnObject.h"
 #include "DolphinQt/QtUtils/WrapInScrollArea.h"
+#include "DolphinQt/Settings.h"
 
 AchievementsWindow::AchievementsWindow(QWidget* parent) : QDialog(parent)
 {
@@ -23,8 +31,16 @@ AchievementsWindow::AchievementsWindow(QWidget* parent) : QDialog(parent)
 
   CreateMainLayout();
   ConnectWidgets();
-  AchievementManager::GetInstance()->SetUpdateCallback(
-      [this] { QueueOnObject(this, &AchievementsWindow::UpdateData); });
+  AchievementManager::GetInstance().SetUpdateCallback(
+      [this](AchievementManager::UpdatedItems updated_items) {
+        QueueOnObject(this, [this, updated_items = std::move(updated_items)] {
+          AchievementsWindow::UpdateData(std::move(updated_items));
+        });
+      });
+  connect(&Settings::Instance(), &Settings::EmulationStateChanged, this,
+          [this] { m_settings_widget->UpdateData(RC_OK); });
+  connect(&Settings::Instance(), &Settings::HardcoreStateChanged, this,
+          [this] { AchievementsWindow::UpdateData({.all = true}); });
 }
 
 void AchievementsWindow::showEvent(QShowEvent* event)
@@ -35,19 +51,22 @@ void AchievementsWindow::showEvent(QShowEvent* event)
 
 void AchievementsWindow::CreateMainLayout()
 {
-  auto* layout = new QVBoxLayout();
+  const auto is_game_loaded = AchievementManager::GetInstance().IsGameLoaded();
 
   m_header_widget = new AchievementHeaderWidget(this);
   m_tab_widget = new QTabWidget();
+  m_settings_widget = new AchievementSettingsWidget(m_tab_widget);
   m_progress_widget = new AchievementProgressWidget(m_tab_widget);
-  m_tab_widget->addTab(
-      GetWrappedWidget(new AchievementSettingsWidget(m_tab_widget, this), this, 125, 100),
-      tr("Settings"));
+  m_leaderboard_widget = new AchievementLeaderboardWidget(m_tab_widget);
+  m_tab_widget->addTab(GetWrappedWidget(m_settings_widget, this, 125, 100), tr("Settings"));
   m_tab_widget->addTab(GetWrappedWidget(m_progress_widget, this, 125, 100), tr("Progress"));
-  m_tab_widget->setTabVisible(1, AchievementManager::GetInstance()->IsGameLoaded());
+  m_tab_widget->setTabVisible(1, is_game_loaded);
+  m_tab_widget->addTab(GetWrappedWidget(m_leaderboard_widget, this, 125, 100), tr("Leaderboards"));
+  m_tab_widget->setTabVisible(2, is_game_loaded);
 
   m_button_box = new QDialogButtonBox(QDialogButtonBox::Close);
 
+  auto* layout = new QVBoxLayout();
   layout->addWidget(m_header_widget);
   layout->addWidget(m_tab_widget);
   layout->addWidget(m_button_box);
@@ -60,17 +79,48 @@ void AchievementsWindow::ConnectWidgets()
   connect(m_button_box, &QDialogButtonBox::rejected, this, &QDialog::reject);
 }
 
-void AchievementsWindow::UpdateData()
+void AchievementsWindow::UpdateData(AchievementManager::UpdatedItems updated_items)
 {
+  m_settings_widget->UpdateData(updated_items.failed_login_code);
+  if (updated_items.all)
   {
-    std::lock_guard lg{*AchievementManager::GetInstance()->GetLock()};
     m_header_widget->UpdateData();
-    m_header_widget->setVisible(AchievementManager::GetInstance()->IsLoggedIn());
-    // Settings tab handles its own updates ... indeed, that calls this
-    m_progress_widget->UpdateData();
-    m_tab_widget->setTabVisible(1, AchievementManager::GetInstance()->IsGameLoaded());
+    m_progress_widget->UpdateData(true);
+    m_leaderboard_widget->UpdateData(true);
+    static_cast<QScrollArea*>(m_tab_widget->widget(1))->verticalScrollBar()->setValue(0);
+    static_cast<QScrollArea*>(m_tab_widget->widget(2))->verticalScrollBar()->setValue(0);
+  }
+  else
+  {
+    if (updated_items.player_icon || updated_items.game_icon || updated_items.rich_presence ||
+        updated_items.all_achievements || updated_items.achievements.size() > 0)
+    {
+      m_header_widget->UpdateData();
+    }
+    if (updated_items.all_achievements || updated_items.rich_presence)
+      m_progress_widget->UpdateData(false);
+    else if (updated_items.achievements.size() > 0)
+      m_progress_widget->UpdateData(updated_items.achievements);
+    if (updated_items.all_leaderboards)
+      m_leaderboard_widget->UpdateData(false);
+    else if (updated_items.leaderboards.size() > 0)
+      m_leaderboard_widget->UpdateData(updated_items.leaderboards);
+  }
+
+  {
+    auto& instance = AchievementManager::GetInstance();
+    std::lock_guard lg{instance.GetLock()};
+    const bool is_game_loaded = instance.IsGameLoaded();
+    m_header_widget->setVisible(instance.HasAPIToken());
+    m_tab_widget->setTabVisible(1, is_game_loaded);
+    m_tab_widget->setTabVisible(2, is_game_loaded);
   }
   update();
+}
+
+void AchievementsWindow::ForceSettingsTab()
+{
+  m_tab_widget->setCurrentIndex(0);
 }
 
 #endif  // USE_RETRO_ACHIEVEMENTS

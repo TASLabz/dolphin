@@ -5,7 +5,6 @@
 
 #include <array>
 #include <cstddef>
-#include <iosfwd>
 #include <span>
 #include <tuple>
 #include <type_traits>
@@ -13,11 +12,14 @@
 
 #include "Common/CommonTypes.h"
 
+#include "Core/CPUThreadConfigCallback.h"
+#include "Core/Debugger/BranchWatch.h"
 #include "Core/Debugger/PPCDebugInterface.h"
 #include "Core/PowerPC/BreakPoints.h"
 #include "Core/PowerPC/ConditionRegister.h"
 #include "Core/PowerPC/Gekko.h"
 #include "Core/PowerPC/PPCCache.h"
+#include "Core/PowerPC/PPCSymbolDB.h"
 
 class CPUCoreBase;
 class PointerWrap;
@@ -38,10 +40,6 @@ enum class CPUCore
   CachedInterpreter = 5,
 };
 
-// For reading from and writing to our config.
-std::istream& operator>>(std::istream& is, CPUCore& core);
-std::ostream& operator<<(std::ostream& os, CPUCore core);
-
 enum class CoreMode
 {
   Interpreter,
@@ -52,6 +50,8 @@ enum class CoreMode
 constexpr size_t TLB_SIZE = 128;
 constexpr size_t NUM_TLBS = 2;
 constexpr size_t TLB_WAYS = 2;
+constexpr size_t DATA_TLB_INDEX = 0;
+constexpr size_t INST_TLB_INDEX = 1;
 
 struct TLBEntry
 {
@@ -61,6 +61,7 @@ struct TLBEntry
 
   WayArray tag{INVALID_TAG, INVALID_TAG};
   WayArray paddr{};
+  WayArray vsid{};
   WayArray pte{};
   u32 recent = 0;
 
@@ -139,6 +140,8 @@ struct PowerPCState
   UReg_MSR msr;      // machine state register
   UReg_FPSCR fpscr;  // floating point flags/status bits
 
+  CPUEmuFeatureFlags feature_flags;
+
   // Exception management.
   u32 Exceptions = 0;
 
@@ -154,7 +157,7 @@ struct PowerPCState
   // lscbx
   u16 xer_stringctrl = 0;
 
-#if _M_X86_64
+#ifdef _M_X86_64
   // This member exists only for the purpose of an assertion that its offset <= 0x100.
   std::tuple<> above_fits_in_first_0x100;
 
@@ -228,7 +231,7 @@ struct PowerPCState
   void UpdateFPRFSingle(float fvalue);
 };
 
-#if _M_X86_64
+#ifdef _M_X86_64
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Winvalid-offsetof"
@@ -278,7 +281,10 @@ public:
   void SingleStep();
   void CheckExceptions();
   void CheckExternalExceptions();
-  void CheckBreakPoints();
+  // Evaluate the breakpoints in order to log. Returns whether it would break.
+  bool CheckBreakPoints();
+  // Evaluate the breakpoints in order to log and/or break. Returns whether it breaks.
+  bool CheckAndHandleBreakPoints();
   void RunLoop();
 
   u64 ReadFullTimeBaseValue() const;
@@ -292,11 +298,16 @@ public:
   const MemChecks& GetMemChecks() const { return m_memchecks; }
   PPCDebugInterface& GetDebugInterface() { return m_debug_interface; }
   const PPCDebugInterface& GetDebugInterface() const { return m_debug_interface; }
+  PPCSymbolDB& GetSymbolDB() { return m_symbol_db; }
+  const PPCSymbolDB& GetSymbolDB() const { return m_symbol_db; }
+  Core::BranchWatch& GetBranchWatch() { return m_branch_watch; }
+  const Core::BranchWatch& GetBranchWatch() const { return m_branch_watch; }
 
 private:
   void InitializeCPUCore(CPUCore cpu_core);
   void ApplyMode();
   void ResetRegisters();
+  void RefreshConfig();
 
   PowerPCState m_ppc_state;
 
@@ -306,7 +317,11 @@ private:
 
   BreakPoints m_breakpoints;
   MemChecks m_memchecks;
+  PPCSymbolDB m_symbol_db;
   PPCDebugInterface m_debug_interface;
+  Core::BranchWatch m_branch_watch;
+
+  CPUThreadConfigCallback::ConfigChangedCallbackID m_registered_config_callback_id;
 
   CoreTiming::EventType* m_invalidate_cache_thread_safe = nullptr;
 
@@ -318,7 +333,7 @@ void UpdatePerformanceMonitor(u32 cycles, u32 num_load_stores, u32 num_fp_inst,
 
 void CheckExceptionsFromJIT(PowerPCManager& power_pc);
 void CheckExternalExceptionsFromJIT(PowerPCManager& power_pc);
-void CheckBreakPointsFromJIT(PowerPCManager& power_pc);
+void CheckAndHandleBreakPointsFromJIT(PowerPCManager& power_pc);
 
 // Easy register access macros.
 #define HID0(ppc_state) ((UReg_HID0&)(ppc_state).spr[SPR_HID0])
@@ -341,5 +356,8 @@ void CheckBreakPointsFromJIT(PowerPCManager& power_pc);
 #define TU(ppc_state) (ppc_state).spr[SPR_TU]
 
 void RoundingModeUpdated(PowerPCState& ppc_state);
+void MSRUpdated(PowerPCState& ppc_state);
+void MMCRUpdated(PowerPCState& ppc_state);
+void RecalculateAllFeatureFlags(PowerPCState& ppc_state);
 
 }  // namespace PowerPC

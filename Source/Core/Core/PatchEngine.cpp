@@ -10,7 +10,6 @@
 #include <algorithm>
 #include <array>
 #include <iterator>
-#include <map>
 #include <mutex>
 #include <optional>
 #include <span>
@@ -24,6 +23,7 @@
 #include "Common/IniFile.h"
 #include "Common/StringUtil.h"
 
+#include "Core/AchievementManager.h"
 #include "Core/ActionReplay.h"
 #include "Core/API/Events.h"
 #include "Core/CheatCodes.h"
@@ -48,7 +48,6 @@ constexpr std::array<const char*, 3> s_patch_type_strings{{
 static std::vector<Patch> s_on_frame;
 static std::vector<std::size_t> s_on_frame_memory;
 static std::mutex s_on_frame_memory_mutex;
-static std::map<u32, int> s_speed_hacks;
 
 const char* PatchTypeAsString(PatchType type)
 {
@@ -79,7 +78,7 @@ std::optional<PatchEntry> DeserializeLine(std::string line)
     entry.conditional = true;
   }
 
-  const auto iter = std::find(s_patch_type_strings.begin(), s_patch_type_strings.end(), items[1]);
+  const auto iter = std::ranges::find(s_patch_type_strings, items[1]);
   if (iter == s_patch_type_strings.end())
     return std::nullopt;
   entry.type = static_cast<PatchType>(std::distance(s_patch_type_strings.begin(), iter));
@@ -175,38 +174,6 @@ void SavePatchSection(Common::IniFile* local_ini, const std::vector<Patch>& patc
   local_ini->SetLines("OnFrame", lines);
 }
 
-static void LoadSpeedhacks(const std::string& section, Common::IniFile& ini)
-{
-  std::vector<std::string> keys;
-  ini.GetKeys(section, &keys);
-  for (const std::string& key : keys)
-  {
-    std::string value;
-    ini.GetOrCreateSection(section)->Get(key, &value, "BOGUS");
-    if (value != "BOGUS")
-    {
-      u32 address;
-      u32 cycles;
-      bool success = true;
-      success &= TryParse(key, &address);
-      success &= TryParse(value, &cycles);
-      if (success)
-      {
-        s_speed_hacks[address] = static_cast<int>(cycles);
-      }
-    }
-  }
-}
-
-int GetSpeedhackCycles(const u32 addr)
-{
-  const auto iter = s_speed_hacks.find(addr);
-  if (iter == s_speed_hacks.end())
-    return 0;
-
-  return iter->second;
-}
-
 void LoadPatches()
 {
   const auto& sconfig = SConfig::GetInstance();
@@ -215,6 +182,13 @@ void LoadPatches()
   Common::IniFile localIni = sconfig.LoadLocalGameIni();
 
   LoadPatchSection("OnFrame", &s_on_frame, globalIni, localIni);
+
+#ifdef USE_RETRO_ACHIEVEMENTS
+  {
+    std::lock_guard lg{AchievementManager::GetInstance().GetLock()};
+    AchievementManager::GetInstance().FilterApprovedPatches(s_on_frame, sconfig.GetGameID());
+  }
+#endif  // USE_RETRO_ACHIEVEMENTS
 
   // Check if I'm syncing Codes
   if (Config::Get(Config::SESSION_CODE_SYNC_OVERRIDE))
@@ -227,8 +201,6 @@ void LoadPatches()
     Gecko::SetActiveCodes(Gecko::LoadCodes(globalIni, localIni));
     ActionReplay::LoadAndApplyCodes(globalIni, localIni);
   }
-
-  LoadSpeedhacks("Speedhacks", merged);
 }
 
 static void ApplyPatches(const Core::CPUThreadGuard& guard, const std::vector<Patch>& patches)
@@ -274,6 +246,9 @@ static void ApplyPatches(const Core::CPUThreadGuard& guard, const std::vector<Pa
 static void ApplyMemoryPatches(const Core::CPUThreadGuard& guard,
                                std::span<const std::size_t> memory_patch_indices)
 {
+  if (AchievementManager::GetInstance().IsHardcoreModeActive())
+    return;
+
   std::lock_guard lock(s_on_frame_memory_mutex);
   for (std::size_t index : memory_patch_indices)
   {
@@ -286,21 +261,22 @@ static void ApplyMemoryPatches(const Core::CPUThreadGuard& guard,
 // We require at least 2 stack frames, if the stack is shallower than that then it won't work.
 static bool IsStackValid(const Core::CPUThreadGuard& guard)
 {
-  auto& system = Core::System::GetInstance();
-  auto& ppc_state = system.GetPPCState();
+  const auto& ppc_state = guard.GetSystem().GetPPCState();
 
   DEBUG_ASSERT(ppc_state.msr.DR && ppc_state.msr.IR);
 
   // Check the stack pointer
-  u32 SP = ppc_state.gpr[1];
+  const u32 SP = ppc_state.gpr[1];
   if (!PowerPC::MMU::HostIsRAMAddress(guard, SP))
     return false;
 
   // Read the frame pointer from the stack (find 2nd frame from top), assert that it makes sense
-  u32 next_SP = PowerPC::MMU::HostRead_U32(guard, SP);
+  const u32 next_SP = PowerPC::MMU::HostRead_U32(guard, SP);
   if (next_SP <= SP || !PowerPC::MMU::HostIsRAMAddress(guard, next_SP) ||
       !PowerPC::MMU::HostIsRAMAddress(guard, next_SP + 4))
+  {
     return false;
+  }
 
   // Check the link register makes sense (that it points to a valid IBAT address)
   const u32 address = PowerPC::MMU::HostRead_U32(guard, next_SP + 4);
@@ -317,14 +293,12 @@ void AddMemoryPatch(std::size_t index)
 void RemoveMemoryPatch(std::size_t index)
 {
   std::lock_guard lock(s_on_frame_memory_mutex);
-  s_on_frame_memory.erase(std::remove(s_on_frame_memory.begin(), s_on_frame_memory.end(), index),
-                          s_on_frame_memory.end());
+  std::erase(s_on_frame_memory, index);
 }
 
-bool ApplyFramePatches()
+bool ApplyFramePatches(Core::System& system)
 {
-  auto& system = Core::System::GetInstance();
-  auto& ppc_state = system.GetPPCState();
+  const auto& ppc_state = system.GetPPCState();
 
   ASSERT(Core::IsCPUThread());
   Core::CPUThreadGuard guard(system);
@@ -357,7 +331,6 @@ bool ApplyFramePatches()
 void Shutdown()
 {
   s_on_frame.clear();
-  s_speed_hacks.clear();
   ActionReplay::ApplyCodes({});
   Gecko::Shutdown();
 }

@@ -108,9 +108,8 @@ ConvertDialog::ConvertDialog(QList<std::shared_ptr<const UICommon::GameFile>> fi
 
   setLayout(main_layout);
 
-  connect(m_format, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-          &ConvertDialog::OnFormatChanged);
-  connect(m_compression, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+  connect(m_format, &QComboBox::currentIndexChanged, this, &ConvertDialog::OnFormatChanged);
+  connect(m_compression, &QComboBox::currentIndexChanged, this,
           &ConvertDialog::OnCompressionChanged);
   connect(convert_button, &QPushButton::clicked, this, &ConvertDialog::Convert);
 
@@ -368,7 +367,7 @@ void ConvertDialog::Convert()
   if (m_files.size() > 1)
   {
     dst_dir = DolphinFileDialog::getExistingDirectory(
-        this, tr("Select where you want to save the converted images"),
+        this, tr("Save Converted Images"),
         QFileInfo(QString::fromStdString(m_files[0]->GetFilePath())).dir().absolutePath());
 
     if (dst_dir.isEmpty())
@@ -377,7 +376,7 @@ void ConvertDialog::Convert()
   else
   {
     dst_path = DolphinFileDialog::getSaveFileName(
-        this, tr("Select where you want to save the converted image"),
+        this, tr("Save Converted Image"),
         QFileInfo(QString::fromStdString(m_files[0]->GetFilePath()))
             .dir()
             .absoluteFilePath(

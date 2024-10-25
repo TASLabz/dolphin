@@ -18,6 +18,7 @@
 class QBoxLayout;
 class QCheckBox;
 class QDialog;
+class QEvent;
 class QGroupBox;
 class QSpinBox;
 class QString;
@@ -69,6 +70,8 @@ protected:
                                     QKeySequence shortcut_key_sequence, Qt::Orientation orientation,
                                     QWidget* shortcut_widget);
 
+  void changeEvent(QEvent* event) override;
+
   QGroupBox* m_settings_box;
   QCheckBox* m_use_controller;
   QCheckBox* m_toggle_lines;
@@ -81,6 +84,4 @@ private:
                                          ControlState controller_state);
   std::optional<ControlState> GetSpinBox(TASSpinBox* spin, int zero, ControlState controller_state,
                                          ControlState scale);
-
-  bool eventFilter(QObject* object, QEvent* event);
 };

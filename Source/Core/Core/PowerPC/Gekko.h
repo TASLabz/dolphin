@@ -294,6 +294,14 @@ union UGeckoInstruction
   };
 };
 
+// Precondition: inst is a bx, bcx, bclrx, or bcctrx instruction.
+constexpr bool BranchIsConditional(UGeckoInstruction inst)
+{
+  if (inst.OPCD == 18)  // bx
+    return false;
+  return (inst.BO & 0b10100) != 0b10100;  // 1z1zz - Branch always
+}
+
 // Used in implementations of rlwimi, rlwinm, and rlwnm
 inline u32 MakeRotationMask(u32 mb, u32 me)
 {
@@ -924,6 +932,14 @@ enum
   EXCEPTION_PERFORMANCE_MONITOR = 0x00000100,
 
   EXCEPTION_FAKE_MEMCHECK_HIT = 0x00000200,
+};
+
+enum CPUEmuFeatureFlags : u32
+{
+  FEATURE_FLAG_MSR_DR = 1 << 0,
+  FEATURE_FLAG_MSR_IR = 1 << 1,
+  FEATURE_FLAG_PERFMON = 1 << 2,
+  FEATURE_FLAG_END_OF_ENUMERATION,
 };
 
 constexpr s32 SignExt16(s16 x)

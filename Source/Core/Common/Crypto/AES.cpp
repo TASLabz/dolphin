@@ -1,6 +1,8 @@
 // Copyright 2017 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "Common/Crypto/AES.h"
+
 #include <array>
 #include <bit>
 #include <memory>
@@ -9,7 +11,6 @@
 
 #include "Common/Assert.h"
 #include "Common/CPUDetect.h"
-#include "Common/Crypto/AES.h"
 
 #ifdef _MSC_VER
 #include <intrin.h>
@@ -250,7 +251,19 @@ public:
   }
 
 private:
-  std::array<__m128i, NUM_ROUND_KEYS> round_keys;
+  // Ensures alignment specifiers are respected.
+  struct XmmReg
+  {
+    __m128i data;
+
+    XmmReg& operator=(const __m128i& m)
+    {
+      data = m;
+      return *this;
+    }
+    operator __m128i() const { return data; }
+  };
+  std::array<XmmReg, NUM_ROUND_KEYS> round_keys;
 };
 
 #endif

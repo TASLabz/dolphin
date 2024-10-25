@@ -149,7 +149,8 @@ static std::array<u8, 20> GetROMHash(VFile* rom)
   return digest;
 }
 
-Core::Core(int device_number) : m_device_number(device_number)
+Core::Core(::Core::System& system, int device_number)
+    : m_device_number(device_number), m_system(system)
 {
   mLogSetDefaultLogger(&s_stub_logger);
 }
@@ -405,8 +406,7 @@ void Core::SetSampleRates()
   blip_set_rates(m_core->getAudioChannel(m_core, 0), m_core->frequency(m_core), SAMPLE_RATE);
   blip_set_rates(m_core->getAudioChannel(m_core, 1), m_core->frequency(m_core), SAMPLE_RATE);
 
-  auto& system = ::Core::System::GetInstance();
-  SoundStream* sound_stream = system.GetSoundStream();
+  SoundStream* sound_stream = m_system.GetSoundStream();
   sound_stream->GetMixer()->SetGBAInputSampleRateDivisors(
       m_device_number, Mixer::FIXED_SAMPLE_RATE_DIVIDEND / SAMPLE_RATE);
 }
@@ -441,8 +441,7 @@ void Core::SetAVStream()
     blip_read_samples(left, &buffer[0], SAMPLES, 1);
     blip_read_samples(right, &buffer[1], SAMPLES, 1);
 
-    auto& system = ::Core::System::GetInstance();
-    SoundStream* sound_stream = system.GetSoundStream();
+    SoundStream* sound_stream = core->m_system.GetSoundStream();
     sound_stream->GetMixer()->PushGBASamples(core->m_device_number, &buffer[0], SAMPLES);
   };
   m_core->setAVStream(m_core, &m_stream);
@@ -544,8 +543,7 @@ void Core::RunCommand(Command& command)
     {
       int recvd = GBASIOJOYSendCommand(
           &m_sio_driver, static_cast<GBASIOJOYCommand>(command.buffer[0]), &command.buffer[1]);
-      std::copy(command.buffer.begin() + 1, command.buffer.begin() + 1 + recvd,
-                std::back_inserter(m_response));
+      std::copy_n(command.buffer.begin() + 1, recvd, std::back_inserter(m_response));
     }
 
     if (m_thread && !m_response_ready)
@@ -568,7 +566,7 @@ void Core::RunUntil(u64 gc_ticks)
   if (static_cast<s64>(gc_ticks - m_last_gc_ticks) <= 0)
     return;
 
-  const u64 gc_frequency = SystemTimers::GetTicksPerSecond();
+  const u64 gc_frequency = m_system.GetSystemTimers().GetTicksPerSecond();
   const u32 core_frequency = GetCoreFrequency(m_core);
 
   mTimingSchedule(m_core->timing, &m_event,

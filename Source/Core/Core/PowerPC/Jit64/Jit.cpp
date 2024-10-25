@@ -16,10 +16,10 @@
 #endif
 
 #include "Common/CommonTypes.h"
+#include "Common/EnumUtils.h"
 #include "Common/GekkoDisassembler.h"
 #include "Common/IOFile.h"
 #include "Common/Logging/Log.h"
-#include "Common/PerformanceCounter.h"
 #include "Common/StringUtil.h"
 #include "Common/Swap.h"
 #include "Common/x64ABI.h"
@@ -43,7 +43,6 @@
 #include "Core/PowerPC/MMU.h"
 #include "Core/PowerPC/PPCAnalyst.h"
 #include "Core/PowerPC/PowerPC.h"
-#include "Core/PowerPC/Profiler.h"
 #include "Core/System.h"
 
 using namespace Gen;
@@ -251,13 +250,12 @@ bool Jit64::BackPatch(SContext* ctx)
 
 void Jit64::Init()
 {
+  InitFastmemArena();
+
   RefreshConfig();
 
   EnableBlockLink();
 
-  auto& memory = m_system.GetMemory();
-
-  jo.fastmem_arena = m_fastmem_enabled && memory.InitFastmemArena();
   jo.optimizeGatherPipe = true;
   jo.accurateSinglePrecision = true;
   js.fastmemLoadStore = nullptr;
@@ -308,6 +306,7 @@ void Jit64::ClearCache()
   ClearCodeSpace();
   Clear();
   RefreshConfig();
+  asm_routines.Regenerate();
   ResetFreeMemoryRanges();
 }
 
@@ -337,7 +336,7 @@ void Jit64::FallBackToInterpreter(UGeckoInstruction inst)
   gpr.Flush();
   fpr.Flush();
 
-  if (js.op->opinfo->flags & FL_ENDBLOCK)
+  if (js.op->canEndBlock)
   {
     MOV(32, PPCSTATE(pc), Imm32(js.compilerPC));
     MOV(32, PPCSTATE(npc), Imm32(js.compilerPC + 4));
@@ -353,7 +352,7 @@ void Jit64::FallBackToInterpreter(UGeckoInstruction inst)
   gpr.Reset(js.op->regsOut);
   fpr.Reset(js.op->GetFregsOut());
 
-  if (js.op->opinfo->flags & FL_ENDBLOCK)
+  if (js.op->canEndBlock)
   {
     if (js.isLastInstruction)
     {
@@ -396,7 +395,7 @@ void Jit64::HLEFunction(u32 hook_index)
   gpr.Flush();
   fpr.Flush();
   ABI_PushRegistersAndAdjustStack({}, 0);
-  ABI_CallFunctionCC(HLE::ExecuteFromJIT, js.compilerPC, hook_index);
+  ABI_CallFunctionCCP(HLE::ExecuteFromJIT, js.compilerPC, hook_index, &m_system);
   ABI_PopRegistersAndAdjustStack({}, 0);
 }
 
@@ -445,8 +444,7 @@ bool Jit64::Cleanup()
     did_something = true;
   }
 
-  // SPEED HACK: MMCR0/MMCR1 should be checked at run-time, not at compile time.
-  if (MMCR0(m_ppc_state).Hex || MMCR1(m_ppc_state).Hex)
+  if (m_ppc_state.feature_flags & FEATURE_FLAG_PERFMON)
   {
     ABI_PushRegistersAndAdjustStack({}, 0);
     ABI_CallFunctionCCCP(PowerPC::UpdatePerformanceMonitor, js.downcountAmount, js.numLoadStoreInst,
@@ -455,20 +453,11 @@ bool Jit64::Cleanup()
     did_something = true;
   }
 
-  if (jo.profile_blocks)
+  if (IsProfilingEnabled())
   {
     ABI_PushRegistersAndAdjustStack({}, 0);
-    // get end tic
-    MOV(64, R(ABI_PARAM1), ImmPtr(&js.curBlock->profile_data.ticStop));
-    ABI_CallFunction(QueryPerformanceCounter);
-    // tic counter += (end tic - start tic)
-    MOV(64, R(RSCRATCH2), ImmPtr(&js.curBlock->profile_data));
-    MOV(64, R(RSCRATCH), MDisp(RSCRATCH2, offsetof(JitBlock::ProfileData, ticStop)));
-    SUB(64, R(RSCRATCH), MDisp(RSCRATCH2, offsetof(JitBlock::ProfileData, ticStart)));
-    ADD(64, R(RSCRATCH), MDisp(RSCRATCH2, offsetof(JitBlock::ProfileData, ticCounter)));
-    ADD(64, MDisp(RSCRATCH2, offsetof(JitBlock::ProfileData, downcountCounter)),
-        Imm32(js.downcountAmount));
-    MOV(64, MDisp(RSCRATCH2, offsetof(JitBlock::ProfileData, ticCounter)), R(RSCRATCH));
+    ABI_CallFunctionPC(&JitBlock::ProfileData::EndProfiling, js.curBlock->profile_data.get(),
+                       js.downcountAmount);
     ABI_PopRegistersAndAdjustStack({}, 0);
     did_something = true;
   }
@@ -483,7 +472,7 @@ void Jit64::FakeBLCall(u32 after)
 
   // We may need to fake the BLR stack on inlined CALL instructions.
   // Else we can't return to this location any more.
-  MOV(32, R(RSCRATCH2), Imm32(after));
+  MOV(64, R(RSCRATCH2), Imm64(u64(m_ppc_state.feature_flags) << 32 | after));
   PUSH(RSCRATCH2);
   FixupBranch skip_exit = CALL();
   POP(RSCRATCH2);
@@ -496,14 +485,45 @@ void Jit64::EmitUpdateMembase()
   MOV(64, R(RMEM), PPCSTATE(mem_ptr));
 }
 
-void Jit64::EmitStoreMembase(const OpArg& msr, X64Reg scratch_reg)
+void Jit64::MSRUpdated(const OpArg& msr, X64Reg scratch_reg)
 {
+  ASSERT(!msr.IsSimpleReg(scratch_reg));
+
+  // Update mem_ptr
   auto& memory = m_system.GetMemory();
-  MOV(64, R(RMEM), ImmPtr(memory.GetLogicalBase()));
-  MOV(64, R(scratch_reg), ImmPtr(memory.GetPhysicalBase()));
-  TEST(32, msr, Imm32(1 << (31 - 27)));
-  CMOVcc(64, RMEM, R(scratch_reg), CC_Z);
+  if (msr.IsImm())
+  {
+    MOV(64, R(RMEM),
+        ImmPtr(UReg_MSR(msr.Imm32()).DR ? memory.GetLogicalBase() : memory.GetPhysicalBase()));
+  }
+  else
+  {
+    MOV(64, R(RMEM), ImmPtr(memory.GetLogicalBase()));
+    MOV(64, R(scratch_reg), ImmPtr(memory.GetPhysicalBase()));
+    TEST(32, msr, Imm32(1 << (31 - 27)));
+    CMOVcc(64, RMEM, R(scratch_reg), CC_Z);
+  }
   MOV(64, PPCSTATE(mem_ptr), R(RMEM));
+
+  // Update feature_flags
+  static_assert(UReg_MSR{}.DR.StartBit() == 4);
+  static_assert(UReg_MSR{}.IR.StartBit() == 5);
+  static_assert(FEATURE_FLAG_MSR_DR == 1 << 0);
+  static_assert(FEATURE_FLAG_MSR_IR == 1 << 1);
+  const u32 other_feature_flags = m_ppc_state.feature_flags & ~0x3;
+  if (msr.IsImm())
+  {
+    MOV(32, PPCSTATE(feature_flags), Imm32(other_feature_flags | ((msr.Imm32() >> 4) & 0x3)));
+  }
+  else
+  {
+    MOV(32, R(scratch_reg), msr);
+    SHR(32, R(scratch_reg), Imm8(4));
+    AND(32, R(scratch_reg), Imm32(0x3));
+    if (other_feature_flags != 0)
+      OR(32, R(scratch_reg), Imm32(other_feature_flags));
+    MOV(32, PPCSTATE(feature_flags), R(scratch_reg));
+  }
 }
 
 void Jit64::WriteExit(u32 destination, bool bl, u32 after)
@@ -515,7 +535,7 @@ void Jit64::WriteExit(u32 destination, bool bl, u32 after)
 
   if (bl)
   {
-    MOV(32, R(RSCRATCH2), Imm32(after));
+    MOV(64, R(RSCRATCH2), Imm64(u64(m_ppc_state.feature_flags) << 32 | after));
     PUSH(RSCRATCH2);
   }
 
@@ -572,7 +592,7 @@ void Jit64::WriteExitDestInRSCRATCH(bool bl, u32 after)
 
   if (bl)
   {
-    MOV(32, R(RSCRATCH2), Imm32(after));
+    MOV(64, R(RSCRATCH2), Imm64(u64(m_ppc_state.feature_flags) << 32 | after));
     PUSH(RSCRATCH2);
   }
 
@@ -600,6 +620,12 @@ void Jit64::WriteBLRExit()
   bool disturbed = Cleanup();
   if (disturbed)
     MOV(32, R(RSCRATCH), PPCSTATE(pc));
+  if (m_ppc_state.feature_flags != 0)
+  {
+    MOV(32, R(RSCRATCH2), Imm32(m_ppc_state.feature_flags));
+    SHL(64, R(RSCRATCH2), Imm8(32));
+    OR(64, R(RSCRATCH), R(RSCRATCH2));
+  }
   MOV(32, R(RSCRATCH2), Imm32(js.downcountAmount));
   CMP(64, R(RSCRATCH), MDisp(RSP, 8));
   J_CC(CC_NE, asm_routines.dispatcher_mispredicted_blr);
@@ -716,7 +742,7 @@ void Jit64::Jit(u32 em_address, bool clear_cache_and_retry_on_failure)
   {
     if (!SConfig::GetInstance().bJITNoBlockCache)
     {
-      WARN_LOG_FMT(POWERPC, "flushing trampoline code cache, please report if this happens a lot");
+      WARN_LOG_FMT(DYNA_REC, "flushing trampoline code cache, please report if this happens a lot");
     }
     ClearCache();
   }
@@ -731,13 +757,13 @@ void Jit64::Jit(u32 em_address, bool clear_cache_and_retry_on_failure)
 
   std::size_t block_size = m_code_buffer.size();
 
-  if (m_enable_debugging)
+  if (IsDebuggingEnabled())
   {
     // We can link blocks as long as we are not single stepping
     EnableBlockLink();
     EnableOptimization();
 
-    if (!jo.profile_blocks)
+    if (!IsProfilingEnabled())
     {
       if (m_system.GetCPU().IsStepping())
       {
@@ -805,15 +831,14 @@ void Jit64::Jit(u32 em_address, bool clear_cache_and_retry_on_failure)
   {
     // Code generation failed due to not enough free space in either the near or far code regions.
     // Clear the entire JIT cache and retry.
-    WARN_LOG_FMT(POWERPC, "flushing code caches, please report if this happens a lot");
+    WARN_LOG_FMT(DYNA_REC, "flushing code caches, please report if this happens a lot");
     ClearCache();
     Jit(em_address, false);
     return;
   }
 
-  PanicAlertFmtT(
-      "JIT failed to find code space after a cache clear. This should never happen. Please "
-      "report this incident on the bug tracker. Dolphin will now exit.");
+  PanicAlertFmtT("JIT failed to find code space after a cache clear. This should never happen. "
+                 "Please report this incident on the bug tracker. Dolphin will now exit.");
   std::exit(-1);
 }
 
@@ -824,7 +849,7 @@ bool Jit64::SetEmitterStateToFreeCodeRegion()
   const auto free_near = m_free_ranges_near.by_size_begin();
   if (free_near == m_free_ranges_near.by_size_end())
   {
-    WARN_LOG_FMT(POWERPC, "Failed to find free memory region in near code region.");
+    WARN_LOG_FMT(DYNA_REC, "Failed to find free memory region in near code region.");
     return false;
   }
   SetCodePtr(free_near.from(), free_near.to());
@@ -832,7 +857,7 @@ bool Jit64::SetEmitterStateToFreeCodeRegion()
   const auto free_far = m_free_ranges_far.by_size_begin();
   if (free_far == m_free_ranges_far.by_size_end())
   {
-    WARN_LOG_FMT(POWERPC, "Failed to find free memory region in far code region.");
+    WARN_LOG_FMT(DYNA_REC, "Failed to find free memory region in far code region.");
     return false;
   }
   m_far_code.SetCodePtr(free_far.from(), free_far.to());
@@ -863,15 +888,9 @@ bool Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
   }
 
   // Conditionally add profiling code.
-  if (jo.profile_blocks)
-  {
-    // get start tic
-    MOV(64, R(ABI_PARAM1), ImmPtr(&b->profile_data.ticStart));
-    int offset = static_cast<int>(offsetof(JitBlock::ProfileData, runCount)) -
-                 static_cast<int>(offsetof(JitBlock::ProfileData, ticStart));
-    ADD(64, MDisp(ABI_PARAM1, offset), Imm8(1));
-    ABI_CallFunction(QueryPerformanceCounter);
-  }
+  if (IsProfilingEnabled())
+    ABI_CallFunctionP(&JitBlock::ProfileData::BeginProfiling, b->profile_data.get());
+
 #if defined(_DEBUG) || defined(DEBUGFAST) || defined(NAN_CHECK)
   // should help logged stack-traces become more accurate
   MOV(32, PPCSTATE(pc), Imm32(js.blockStart));
@@ -888,10 +907,9 @@ bool Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
   js.constantGqrValid = BitSet8();
 
   // Assume that GQR values don't change often at runtime. Many paired-heavy games use largely float
-  // loads and stores,
-  // which are significantly faster when inlined (especially in MMU mode, where this lets them use
-  // fastmem).
-  if (js.pairedQuantizeAddresses.find(js.blockStart) == js.pairedQuantizeAddresses.end())
+  // loads and stores, which are significantly faster when inlined (especially in MMU mode, where
+  // this lets them use fastmem).
+  if (!js.pairedQuantizeAddresses.contains(js.blockStart))
   {
     // If there are GQRs used but not set, we'll treat those as constant and optimize them
     BitSet8 gqr_static = ComputeStaticGQRs(code_block);
@@ -920,8 +938,7 @@ bool Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
     }
   }
 
-  if (js.noSpeculativeConstantsAddresses.find(js.blockStart) ==
-      js.noSpeculativeConstantsAddresses.end())
+  if (!js.noSpeculativeConstantsAddresses.contains(js.blockStart))
   {
     IntializeSpeculativeConstants();
   }
@@ -934,15 +951,11 @@ bool Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
     js.compilerPC = op.address;
     js.op = &op;
     js.fpr_is_store_safe = op.fprIsStoreSafeBeforeInst;
-    js.instructionNumber = i;
     js.instructionsLeft = (code_block.m_num_instructions - 1) - i;
     const GekkoOPInfo* opinfo = op.opinfo;
     js.downcountAmount += opinfo->num_cycles;
     js.fastmemLoadStore = nullptr;
     js.fixupExceptionHandler = false;
-
-    if (!m_enable_debugging)
-      js.downcountAmount += PatchEngine::GetSpeedhackCycles(js.compilerPC);
 
     if (i == (code_block.m_num_instructions - 1))
     {
@@ -953,8 +966,7 @@ bool Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
     {
       // Gather pipe writes using a non-immediate address are discovered by profiling.
       const u32 prev_address = m_code_buffer[i - 1].address;
-      bool gatherPipeIntCheck =
-          js.fifoWriteAddresses.find(prev_address) != js.fifoWriteAddresses.end();
+      bool gatherPipeIntCheck = js.fifoWriteAddresses.contains(prev_address);
 
       // Gather pipe writes using an immediate address are explicitly tracked.
       if (jo.optimizeGatherPipe &&
@@ -1006,8 +1018,43 @@ bool Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
     if (HandleFunctionHooking(op.address))
       break;
 
-    if (!op.skip)
+    if (op.skip)
     {
+      if (IsDebuggingEnabled())
+      {
+        // The only thing that currently sets op.skip is the BLR following optimization.
+        // If any non-branch instruction starts setting that too, this will need to be changed.
+        ASSERT(op.inst.hex == 0x4e800020);
+        WriteBranchWatch<true>(op.address, op.branchTo, op.inst, RSCRATCH, RSCRATCH2,
+                               CallerSavedRegistersInUse());
+      }
+    }
+    else
+    {
+      auto& cpu = m_system.GetCPU();
+      auto& power_pc = m_system.GetPowerPC();
+      if (IsDebuggingEnabled() && power_pc.GetBreakPoints().IsAddressBreakPoint(op.address) &&
+          !cpu.IsStepping())
+      {
+        gpr.Flush();
+        fpr.Flush();
+
+        MOV(32, PPCSTATE(pc), Imm32(op.address));
+        ABI_PushRegistersAndAdjustStack({}, 0);
+        ABI_CallFunctionP(PowerPC::CheckAndHandleBreakPointsFromJIT, &power_pc);
+        ABI_PopRegistersAndAdjustStack({}, 0);
+        MOV(64, R(RSCRATCH), ImmPtr(cpu.GetStatePtr()));
+        CMP(32, MatR(RSCRATCH), Imm32(Common::ToUnderlying(CPU::State::Running)));
+        FixupBranch noBreakpoint = J_CC(CC_E);
+
+        Cleanup();
+        MOV(32, PPCSTATE(npc), Imm32(op.address));
+        SUB(32, PPCSTATE(downcount), Imm32(js.downcountAmount));
+        JMP(asm_routines.dispatcher_exit, Jump::Near);
+
+        SetJumpTarget(noBreakpoint);
+      }
+
       if ((opinfo->flags & FL_USE_FPU) && !js.firstFPInstructionFound)
       {
         // This instruction uses FPU - needs to add FP exception bailout
@@ -1032,30 +1079,6 @@ bool Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
         SwitchToNearCode();
 
         js.firstFPInstructionFound = true;
-      }
-
-      auto& cpu = m_system.GetCPU();
-      auto& power_pc = m_system.GetPowerPC();
-      if (m_enable_debugging && power_pc.GetBreakPoints().IsAddressBreakPoint(op.address) &&
-          !cpu.IsStepping())
-      {
-        gpr.Flush();
-        fpr.Flush();
-
-        MOV(32, PPCSTATE(pc), Imm32(op.address));
-        ABI_PushRegistersAndAdjustStack({}, 0);
-        ABI_CallFunctionP(PowerPC::CheckBreakPointsFromJIT, &power_pc);
-        ABI_PopRegistersAndAdjustStack({}, 0);
-        MOV(64, R(RSCRATCH), ImmPtr(cpu.GetStatePtr()));
-        TEST(32, MatR(RSCRATCH), Imm32(0xFFFFFFFF));
-        FixupBranch noBreakpoint = J_CC(CC_Z);
-
-        Cleanup();
-        MOV(32, PPCSTATE(npc), Imm32(op.address));
-        SUB(32, PPCSTATE(downcount), Imm32(js.downcountAmount));
-        JMP(asm_routines.dispatcher_exit, Jump::Near);
-
-        SetJumpTarget(noBreakpoint);
       }
 
       if (bJITRegisterCacheOff)
@@ -1158,9 +1181,9 @@ bool Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
   if (HasWriteFailed() || m_far_code.HasWriteFailed())
   {
     if (HasWriteFailed())
-      WARN_LOG_FMT(POWERPC, "JIT ran out of space in near code region during code generation.");
+      WARN_LOG_FMT(DYNA_REC, "JIT ran out of space in near code region during code generation.");
     if (m_far_code.HasWriteFailed())
-      WARN_LOG_FMT(POWERPC, "JIT ran out of space in far code region during code generation.");
+      WARN_LOG_FMT(DYNA_REC, "JIT ran out of space in far code region during code generation.");
 
     return false;
   }
@@ -1239,17 +1262,19 @@ void Jit64::IntializeSpeculativeConstants()
 
 bool Jit64::HandleFunctionHooking(u32 address)
 {
-  return HLE::ReplaceFunctionIfPossible(address, [&](u32 hook_index, HLE::HookType type) {
-    HLEFunction(hook_index);
+  const auto result = HLE::TryReplaceFunction(m_ppc_symbol_db, address, PowerPC::CoreMode::JIT);
+  if (!result)
+    return false;
 
-    if (type != HLE::HookType::Replace)
-      return false;
+  HLEFunction(result.hook_index);
 
-    MOV(32, R(RSCRATCH), PPCSTATE(npc));
-    js.downcountAmount += js.st.numCycles;
-    WriteExitDestInRSCRATCH();
-    return true;
-  });
+  if (result.type != HLE::HookType::Replace)
+    return false;
+
+  MOV(32, R(RSCRATCH), PPCSTATE(npc));
+  js.downcountAmount += js.st.numCycles;
+  WriteExitDestInRSCRATCH();
+  return true;
 }
 
 void LogGeneratedX86(size_t size, const PPCAnalyst::CodeBuffer& code_buffer, const u8* normalEntry,

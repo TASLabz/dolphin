@@ -4,9 +4,8 @@
 #include "Core/HW/AddressSpace.h"
 
 #include <algorithm>
+#include <bit>
 
-#include "Common/BitUtils.h"
-#include "Core/ConfigManager.h"
 #include "Core/Core.h"
 #include "Core/HW/DSP.h"
 #include "Core/HW/Memmap.h"
@@ -56,7 +55,7 @@ void Accessors::WriteU64(const Core::CPUThreadGuard& guard, u32 address, u64 val
 
 float Accessors::ReadF32(const Core::CPUThreadGuard& guard, u32 address) const
 {
-  return Common::BitCast<float>(ReadU32(guard, address));
+  return std::bit_cast<float>(ReadU32(guard, address));
 }
 
 Accessors::iterator Accessors::begin() const
@@ -121,7 +120,7 @@ struct EffectiveAddressSpaceAccessors : Accessors
   float ReadF32(const Core::CPUThreadGuard& guard, u32 address) const override
   {
     return PowerPC::MMU::HostRead_F32(guard, address);
-  };
+  }
 
   bool Matches(const Core::CPUThreadGuard& guard, u32 haystack_start, const u8* needle_start,
                std::size_t needle_size) const
@@ -151,14 +150,14 @@ struct EffectiveAddressSpaceAccessors : Accessors
         return false;
       }
 
-      u8* page_ptr = memory.GetPointer(*page_physical_address);
+      std::size_t chunk_size = std::min<std::size_t>(0x1000 - offset, needle_size);
+      u8* page_ptr = memory.GetPointerForRange(*page_physical_address + offset, chunk_size);
       if (page_ptr == nullptr)
       {
         return false;
       }
 
-      std::size_t chunk_size = std::min<std::size_t>(0x1000 - offset, needle_size);
-      if (memcmp(needle_start, page_ptr + offset, chunk_size) != 0)
+      if (memcmp(needle_start, page_ptr, chunk_size) != 0)
       {
         return false;
       }
@@ -209,7 +208,7 @@ struct AuxiliaryAddressSpaceAccessors : Accessors
   static constexpr u32 aram_base_address = 0;
   bool IsValidAddress(const Core::CPUThreadGuard& guard, u32 address) const override
   {
-    return !SConfig::GetInstance().bWii && (address - aram_base_address) < GetSize();
+    return !guard.GetSystem().IsWii() && (address - aram_base_address) < GetSize();
   }
   u8 ReadU8(const Core::CPUThreadGuard& guard, u32 address) const override
   {
@@ -332,18 +331,16 @@ private:
   std::vector<AccessorMapping>::iterator FindAppropriateAccessor(const Core::CPUThreadGuard& guard,
                                                                  u32 address)
   {
-    return std::find_if(m_accessor_mappings.begin(), m_accessor_mappings.end(),
-                        [&guard, address](const AccessorMapping& a) {
-                          return a.accessors->IsValidAddress(guard, address - a.base);
-                        });
+    return std::ranges::find_if(m_accessor_mappings, [&guard, address](const AccessorMapping& a) {
+      return a.accessors->IsValidAddress(guard, address - a.base);
+    });
   }
   std::vector<AccessorMapping>::const_iterator
   FindAppropriateAccessor(const Core::CPUThreadGuard& guard, u32 address) const
   {
-    return std::find_if(m_accessor_mappings.begin(), m_accessor_mappings.end(),
-                        [&guard, address](const AccessorMapping& a) {
-                          return a.accessors->IsValidAddress(guard, address - a.base);
-                        });
+    return std::ranges::find_if(m_accessor_mappings, [&guard, address](const AccessorMapping& a) {
+      return a.accessors->IsValidAddress(guard, address - a.base);
+    });
   }
 };
 
@@ -442,7 +439,7 @@ Accessors* GetAccessors(Type address_space)
   case Type::Effective:
     return &s_effective_address_space_accessors;
   case Type::Physical:
-    if (SConfig::GetInstance().bWii)
+    if (Core::System::GetInstance().IsWii())
     {
       return &s_physical_address_space_accessors_wii;
     }
@@ -453,13 +450,13 @@ Accessors* GetAccessors(Type address_space)
   case Type::Mem1:
     return &s_mem1_address_space_accessors;
   case Type::Mem2:
-    if (SConfig::GetInstance().bWii)
+    if (Core::System::GetInstance().IsWii())
     {
       return &s_mem2_address_space_accessors;
     }
     break;
   case Type::Auxiliary:
-    if (!SConfig::GetInstance().bWii)
+    if (!Core::System::GetInstance().IsWii())
     {
       return &s_auxiliary_address_space_accessors;
     }

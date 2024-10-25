@@ -125,6 +125,11 @@ bool Device::Control::IsMatchingName(std::string_view name) const
   return GetName() == name;
 }
 
+bool Device::Control::IsHidden() const
+{
+  return false;
+}
+
 ControlState Device::FullAnalogSurface::GetState() const
 {
   return (1 + std::max(0.0, m_high.GetState()) - std::max(0.0, m_low.GetState())) / 2;
@@ -134,6 +139,16 @@ std::string Device::FullAnalogSurface::GetName() const
 {
   // E.g. "Full Axis X+"
   return "Full " + m_high.GetName();
+}
+
+bool Device::FullAnalogSurface::IsDetectable() const
+{
+  return m_low.IsDetectable() && m_high.IsDetectable();
+}
+
+bool Device::FullAnalogSurface::IsHidden() const
+{
+  return m_low.IsHidden() && m_high.IsHidden();
 }
 
 bool Device::FullAnalogSurface::IsMatchingName(std::string_view name) const
@@ -212,19 +227,9 @@ bool DeviceQualifier::operator==(const Device* const dev) const
   return false;
 }
 
-bool DeviceQualifier::operator!=(const Device* const dev) const
-{
-  return !operator==(dev);
-}
-
 bool DeviceQualifier::operator==(const DeviceQualifier& devq) const
 {
   return std::tie(cid, name, source) == std::tie(devq.cid, devq.name, devq.source);
-}
-
-bool DeviceQualifier::operator!=(const DeviceQualifier& devq) const
-{
-  return !operator==(devq);
 }
 
 std::shared_ptr<Device> DeviceContainer::FindDevice(const DeviceQualifier& devq) const

@@ -28,7 +28,7 @@ static PyObject* SetBreakpoint(PyObject* self, PyObject* args)
     return nullptr;
   u32 addr = std::get<0>(args_opt.value());
 
-  Core::System::GetInstance().GetPowerPC().GetBreakPoints().Add(addr, false);
+  Core::System::GetInstance().GetPowerPC().GetBreakPoints().Add(addr, false, false, {});
 
   // TODO: How can we inform the BreakpointWidget to update the list of breakpoints?
   Py_RETURN_NONE;

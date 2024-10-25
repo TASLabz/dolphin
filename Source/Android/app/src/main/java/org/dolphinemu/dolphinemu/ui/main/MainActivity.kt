@@ -9,14 +9,13 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup.MarginLayoutParams
+import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.ViewCompat
-import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout.OnRefreshListener
 import com.google.android.material.appbar.AppBarLayout
-import com.google.android.material.color.MaterialColors
 import com.google.android.material.tabs.TabLayout
 import org.dolphinemu.dolphinemu.R
 import org.dolphinemu.dolphinemu.activities.EmulationActivity
@@ -47,17 +46,19 @@ class MainActivity : AppCompatActivity(), MainView, OnRefreshListener, ThemeProv
 
     private lateinit var binding: ActivityMainBinding
 
+    private lateinit var menu: Menu
+
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen().setKeepOnScreenCondition { !DirectoryInitialization.areDolphinDirectoriesReady() }
 
         ThemeHelper.setTheme(this)
+        enableEdgeToEdge()
 
         super.onCreate(savedInstanceState)
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        WindowCompat.setDecorFitsSystemWindows(window, false)
         setInsets()
         ThemeHelper.enableStatusBarScrollTint(this, binding.appbarMain)
 
@@ -121,13 +122,24 @@ class MainActivity : AppCompatActivity(), MainView, OnRefreshListener, ThemeProv
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.menu_game_grid, menu)
-        if (WiiUtils.isSystemMenuInstalled()) {
-            val resId =
-                if (WiiUtils.isSystemMenuvWii()) R.string.grid_menu_load_vwii_system_menu_installed else R.string.grid_menu_load_wii_system_menu_installed
-            menu.findItem(R.id.menu_load_wii_system_menu).title =
-                getString(resId, WiiUtils.getSystemMenuVersion())
-        }
+        this.menu = menu
         return true
+    }
+
+    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+        AfterDirectoryInitializationRunner().runWithLifecycle(this) {
+            if (WiiUtils.isSystemMenuInstalled()) {
+                val resId =
+                    if (WiiUtils.isSystemMenuvWii()) R.string.grid_menu_load_vwii_system_menu_installed else R.string.grid_menu_load_wii_system_menu_installed
+
+                // If this callback ends up running after another call to onCreateOptionsMenu,
+                // we need to use the new Menu passed to the latest call of onCreateOptionsMenu.
+                // Therefore, we use a field here instead of the onPrepareOptionsMenu argument.
+                this.menu.findItem(R.id.menu_load_wii_system_menu).title =
+                    getString(resId, WiiUtils.getSystemMenuVersion())
+            }
+        }
+        return super.onPrepareOptionsMenu(menu)
     }
 
     /**
@@ -317,10 +329,6 @@ class MainActivity : AppCompatActivity(), MainView, OnRefreshListener, ThemeProv
             binding.pagerPlatforms.setPadding(insets.left, 0, insets.right, 0)
 
             InsetsHelper.applyNavbarWorkaround(insets.bottom, binding.workaroundView)
-            ThemeHelper.setNavigationBarColor(
-                this,
-                MaterialColors.getColor(binding.appbarMain, R.attr.colorSurface)
-            )
 
             windowInsets
         }

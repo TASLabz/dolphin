@@ -49,7 +49,9 @@ void ReadIndirect(VertexLoader* loader, const T* data)
     const float value = FracAdjust(Common::FromBigEndian(data[i]));
     if (loader->m_remaining == 0)
     {
-      if (i >= 3 && i < 6)
+      if (i < 3)
+        VertexLoaderManager::normal_cache[i] = value;
+      else if (i >= 3 && i < 6)
         VertexLoaderManager::tangent_cache[i - 3] = value;
       else if (i >= 6 && i < 9)
         VertexLoaderManager::binormal_cache[i - 6] = value;
@@ -95,7 +97,7 @@ void Normal_ReadIndex_Indices3(VertexLoader* loader)
 }
 
 using Common::EnumMap;
-using Formats = EnumMap<TPipelineFunction, ComponentFormat::Float>;
+using Formats = EnumMap<TPipelineFunction, ComponentFormat::InvalidFloat7>;
 using Elements = EnumMap<Formats, NormalComponentCount::NTB>;
 using Indices = std::array<Elements, 2>;
 using Types = EnumMap<Indices, VertexComponentFormat::Index16>;
@@ -113,11 +115,17 @@ consteval Types InitializeTable()
   table[VCF::Direct][false][NCC::N][FMT::UShort] = Normal_ReadDirect<u16, 1>;
   table[VCF::Direct][false][NCC::N][FMT::Short] = Normal_ReadDirect<s16, 1>;
   table[VCF::Direct][false][NCC::N][FMT::Float] = Normal_ReadDirect<float, 1>;
+  table[VCF::Direct][false][NCC::N][FMT::InvalidFloat5] = Normal_ReadDirect<float, 1>;
+  table[VCF::Direct][false][NCC::N][FMT::InvalidFloat6] = Normal_ReadDirect<float, 1>;
+  table[VCF::Direct][false][NCC::N][FMT::InvalidFloat7] = Normal_ReadDirect<float, 1>;
   table[VCF::Direct][false][NCC::NTB][FMT::UByte] = Normal_ReadDirect<u8, 3>;
   table[VCF::Direct][false][NCC::NTB][FMT::Byte] = Normal_ReadDirect<s8, 3>;
   table[VCF::Direct][false][NCC::NTB][FMT::UShort] = Normal_ReadDirect<u16, 3>;
   table[VCF::Direct][false][NCC::NTB][FMT::Short] = Normal_ReadDirect<s16, 3>;
   table[VCF::Direct][false][NCC::NTB][FMT::Float] = Normal_ReadDirect<float, 3>;
+  table[VCF::Direct][false][NCC::NTB][FMT::InvalidFloat5] = Normal_ReadDirect<float, 3>;
+  table[VCF::Direct][false][NCC::NTB][FMT::InvalidFloat6] = Normal_ReadDirect<float, 3>;
+  table[VCF::Direct][false][NCC::NTB][FMT::InvalidFloat7] = Normal_ReadDirect<float, 3>;
 
   // Same as above, since there are no indices
   table[VCF::Direct][true][NCC::N][FMT::UByte] = Normal_ReadDirect<u8, 1>;
@@ -125,22 +133,34 @@ consteval Types InitializeTable()
   table[VCF::Direct][true][NCC::N][FMT::UShort] = Normal_ReadDirect<u16, 1>;
   table[VCF::Direct][true][NCC::N][FMT::Short] = Normal_ReadDirect<s16, 1>;
   table[VCF::Direct][true][NCC::N][FMT::Float] = Normal_ReadDirect<float, 1>;
+  table[VCF::Direct][true][NCC::N][FMT::InvalidFloat5] = Normal_ReadDirect<float, 1>;
+  table[VCF::Direct][true][NCC::N][FMT::InvalidFloat6] = Normal_ReadDirect<float, 1>;
+  table[VCF::Direct][true][NCC::N][FMT::InvalidFloat7] = Normal_ReadDirect<float, 1>;
   table[VCF::Direct][true][NCC::NTB][FMT::UByte] = Normal_ReadDirect<u8, 3>;
   table[VCF::Direct][true][NCC::NTB][FMT::Byte] = Normal_ReadDirect<s8, 3>;
   table[VCF::Direct][true][NCC::NTB][FMT::UShort] = Normal_ReadDirect<u16, 3>;
   table[VCF::Direct][true][NCC::NTB][FMT::Short] = Normal_ReadDirect<s16, 3>;
   table[VCF::Direct][true][NCC::NTB][FMT::Float] = Normal_ReadDirect<float, 3>;
+  table[VCF::Direct][true][NCC::NTB][FMT::InvalidFloat5] = Normal_ReadDirect<float, 3>;
+  table[VCF::Direct][true][NCC::NTB][FMT::InvalidFloat6] = Normal_ReadDirect<float, 3>;
+  table[VCF::Direct][true][NCC::NTB][FMT::InvalidFloat7] = Normal_ReadDirect<float, 3>;
 
   table[VCF::Index8][false][NCC::N][FMT::UByte] = Normal_ReadIndex<u8, u8, 1>;
   table[VCF::Index8][false][NCC::N][FMT::Byte] = Normal_ReadIndex<u8, s8, 1>;
   table[VCF::Index8][false][NCC::N][FMT::UShort] = Normal_ReadIndex<u8, u16, 1>;
   table[VCF::Index8][false][NCC::N][FMT::Short] = Normal_ReadIndex<u8, s16, 1>;
   table[VCF::Index8][false][NCC::N][FMT::Float] = Normal_ReadIndex<u8, float, 1>;
+  table[VCF::Index8][false][NCC::N][FMT::InvalidFloat5] = Normal_ReadIndex<u8, float, 1>;
+  table[VCF::Index8][false][NCC::N][FMT::InvalidFloat6] = Normal_ReadIndex<u8, float, 1>;
+  table[VCF::Index8][false][NCC::N][FMT::InvalidFloat7] = Normal_ReadIndex<u8, float, 1>;
   table[VCF::Index8][false][NCC::NTB][FMT::UByte] = Normal_ReadIndex<u8, u8, 3>;
   table[VCF::Index8][false][NCC::NTB][FMT::Byte] = Normal_ReadIndex<u8, s8, 3>;
   table[VCF::Index8][false][NCC::NTB][FMT::UShort] = Normal_ReadIndex<u8, u16, 3>;
   table[VCF::Index8][false][NCC::NTB][FMT::Short] = Normal_ReadIndex<u8, s16, 3>;
   table[VCF::Index8][false][NCC::NTB][FMT::Float] = Normal_ReadIndex<u8, float, 3>;
+  table[VCF::Index8][false][NCC::NTB][FMT::InvalidFloat5] = Normal_ReadIndex<u8, float, 3>;
+  table[VCF::Index8][false][NCC::NTB][FMT::InvalidFloat6] = Normal_ReadIndex<u8, float, 3>;
+  table[VCF::Index8][false][NCC::NTB][FMT::InvalidFloat7] = Normal_ReadIndex<u8, float, 3>;
 
   // Same for NormalComponentCount::N; differs for NTB
   table[VCF::Index8][true][NCC::N][FMT::UByte] = Normal_ReadIndex<u8, u8, 1>;
@@ -148,22 +168,34 @@ consteval Types InitializeTable()
   table[VCF::Index8][true][NCC::N][FMT::UShort] = Normal_ReadIndex<u8, u16, 1>;
   table[VCF::Index8][true][NCC::N][FMT::Short] = Normal_ReadIndex<u8, s16, 1>;
   table[VCF::Index8][true][NCC::N][FMT::Float] = Normal_ReadIndex<u8, float, 1>;
+  table[VCF::Index8][true][NCC::N][FMT::InvalidFloat5] = Normal_ReadIndex<u8, float, 1>;
+  table[VCF::Index8][true][NCC::N][FMT::InvalidFloat6] = Normal_ReadIndex<u8, float, 1>;
+  table[VCF::Index8][true][NCC::N][FMT::InvalidFloat7] = Normal_ReadIndex<u8, float, 1>;
   table[VCF::Index8][true][NCC::NTB][FMT::UByte] = Normal_ReadIndex_Indices3<u8, u8>;
   table[VCF::Index8][true][NCC::NTB][FMT::Byte] = Normal_ReadIndex_Indices3<u8, s8>;
   table[VCF::Index8][true][NCC::NTB][FMT::UShort] = Normal_ReadIndex_Indices3<u8, u16>;
   table[VCF::Index8][true][NCC::NTB][FMT::Short] = Normal_ReadIndex_Indices3<u8, s16>;
   table[VCF::Index8][true][NCC::NTB][FMT::Float] = Normal_ReadIndex_Indices3<u8, float>;
+  table[VCF::Index8][true][NCC::NTB][FMT::InvalidFloat5] = Normal_ReadIndex_Indices3<u8, float>;
+  table[VCF::Index8][true][NCC::NTB][FMT::InvalidFloat6] = Normal_ReadIndex_Indices3<u8, float>;
+  table[VCF::Index8][true][NCC::NTB][FMT::InvalidFloat7] = Normal_ReadIndex_Indices3<u8, float>;
 
   table[VCF::Index16][false][NCC::N][FMT::UByte] = Normal_ReadIndex<u16, u8, 1>;
   table[VCF::Index16][false][NCC::N][FMT::Byte] = Normal_ReadIndex<u16, s8, 1>;
   table[VCF::Index16][false][NCC::N][FMT::UShort] = Normal_ReadIndex<u16, u16, 1>;
   table[VCF::Index16][false][NCC::N][FMT::Short] = Normal_ReadIndex<u16, s16, 1>;
   table[VCF::Index16][false][NCC::N][FMT::Float] = Normal_ReadIndex<u16, float, 1>;
+  table[VCF::Index16][false][NCC::N][FMT::InvalidFloat5] = Normal_ReadIndex<u16, float, 1>;
+  table[VCF::Index16][false][NCC::N][FMT::InvalidFloat6] = Normal_ReadIndex<u16, float, 1>;
+  table[VCF::Index16][false][NCC::N][FMT::InvalidFloat7] = Normal_ReadIndex<u16, float, 1>;
   table[VCF::Index16][false][NCC::NTB][FMT::UByte] = Normal_ReadIndex<u16, u8, 3>;
   table[VCF::Index16][false][NCC::NTB][FMT::Byte] = Normal_ReadIndex<u16, s8, 3>;
   table[VCF::Index16][false][NCC::NTB][FMT::UShort] = Normal_ReadIndex<u16, u16, 3>;
   table[VCF::Index16][false][NCC::NTB][FMT::Short] = Normal_ReadIndex<u16, s16, 3>;
   table[VCF::Index16][false][NCC::NTB][FMT::Float] = Normal_ReadIndex<u16, float, 3>;
+  table[VCF::Index16][false][NCC::NTB][FMT::InvalidFloat5] = Normal_ReadIndex<u16, float, 3>;
+  table[VCF::Index16][false][NCC::NTB][FMT::InvalidFloat6] = Normal_ReadIndex<u16, float, 3>;
+  table[VCF::Index16][false][NCC::NTB][FMT::InvalidFloat7] = Normal_ReadIndex<u16, float, 3>;
 
   // Same for NormalComponentCount::N; differs for NTB
   table[VCF::Index16][true][NCC::N][FMT::UByte] = Normal_ReadIndex<u16, u8, 1>;
@@ -171,11 +203,17 @@ consteval Types InitializeTable()
   table[VCF::Index16][true][NCC::N][FMT::UShort] = Normal_ReadIndex<u16, u16, 1>;
   table[VCF::Index16][true][NCC::N][FMT::Short] = Normal_ReadIndex<u16, s16, 1>;
   table[VCF::Index16][true][NCC::N][FMT::Float] = Normal_ReadIndex<u16, float, 1>;
+  table[VCF::Index16][true][NCC::N][FMT::InvalidFloat5] = Normal_ReadIndex<u16, float, 1>;
+  table[VCF::Index16][true][NCC::N][FMT::InvalidFloat6] = Normal_ReadIndex<u16, float, 1>;
+  table[VCF::Index16][true][NCC::N][FMT::InvalidFloat7] = Normal_ReadIndex<u16, float, 1>;
   table[VCF::Index16][true][NCC::NTB][FMT::UByte] = Normal_ReadIndex_Indices3<u16, u8>;
   table[VCF::Index16][true][NCC::NTB][FMT::Byte] = Normal_ReadIndex_Indices3<u16, s8>;
   table[VCF::Index16][true][NCC::NTB][FMT::UShort] = Normal_ReadIndex_Indices3<u16, u16>;
   table[VCF::Index16][true][NCC::NTB][FMT::Short] = Normal_ReadIndex_Indices3<u16, s16>;
   table[VCF::Index16][true][NCC::NTB][FMT::Float] = Normal_ReadIndex_Indices3<u16, float>;
+  table[VCF::Index16][true][NCC::NTB][FMT::InvalidFloat5] = Normal_ReadIndex_Indices3<u16, float>;
+  table[VCF::Index16][true][NCC::NTB][FMT::InvalidFloat6] = Normal_ReadIndex_Indices3<u16, float>;
+  table[VCF::Index16][true][NCC::NTB][FMT::InvalidFloat7] = Normal_ReadIndex_Indices3<u16, float>;
 
   return table;
 }

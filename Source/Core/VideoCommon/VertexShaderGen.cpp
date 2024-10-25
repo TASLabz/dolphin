@@ -96,14 +96,14 @@ ShaderCode GenerateVertexShaderCode(APIType api_type, const ShaderHostConfig& ho
 
   if (uid_data->vs_expand != VSExpand::None)
   {
-    out.Write("UBO_BINDING(std140, 3) uniform GSBlock {{\n");
+    out.Write("UBO_BINDING(std140, 4) uniform GSBlock {{\n");
     out.Write("{}", s_geometry_shader_uniforms);
     out.Write("}};\n");
 
     if (api_type == APIType::D3D)
     {
       // D3D doesn't include the base vertex in SV_VertexID
-      out.Write("UBO_BINDING(std140, 4) uniform DX_Constants {{\n"
+      out.Write("UBO_BINDING(std140, 5) uniform DX_Constants {{\n"
                 "  uint base_vertex;\n"
                 "}};\n\n");
     }
@@ -149,7 +149,7 @@ ShaderCode GenerateVertexShaderCode(APIType api_type, const ShaderHostConfig& ho
     // Can't use float3, etc because we want 4-byte alignment
     out.Write(
         "uint4 unpack_ubyte4(uint value) {{\n"
-        "  return uint4(value & 0xff, (value >> 8) & 0xff, (value >> 16) & 0xff, value >> 24);\n"
+        "  return uint4(value & 0xffu, (value >> 8) & 0xffu, (value >> 16) & 0xffu, value >> 24);\n"
         "}}\n\n"
         "struct InputData {{\n");
     if (uid_data->components & VB_HAS_POSMTXIDX)
@@ -271,7 +271,7 @@ ShaderCode GenerateVertexShaderCode(APIType api_type, const ShaderHostConfig& ho
     if (api_type == APIType::D3D)
       out.Write("uint vertex_id = (gl_VertexID >> 2) + base_vertex;\n");
     else
-      out.Write("uint vertex_id = gl_VertexID >> 2;\n");
+      out.Write("uint vertex_id = uint(gl_VertexID) >> 2u;\n");
     out.Write("InputData i = input_buffer[vertex_id];\n"
               "{}",
               input_extract.GetBuffer());
@@ -312,56 +312,43 @@ ShaderCode GenerateVertexShaderCode(APIType api_type, const ShaderHostConfig& ho
     out.Write("int posidx = int(posmtx.r);\n"
               "float4 P0 = " I_TRANSFORMMATRICES "[posidx];\n"
               "float4 P1 = " I_TRANSFORMMATRICES "[posidx + 1];\n"
-              "float4 P2 = " I_TRANSFORMMATRICES "[posidx + 2];\n");
-    if ((uid_data->components & VB_HAS_NORMAL) != 0)
-    {
-      out.Write("int normidx = posidx & 31;\n"
-                "float3 N0 = " I_NORMALMATRICES "[normidx].xyz;\n"
-                "float3 N1 = " I_NORMALMATRICES "[normidx + 1].xyz;\n"
-                "float3 N2 = " I_NORMALMATRICES "[normidx + 2].xyz;\n");
-    }
+              "float4 P2 = " I_TRANSFORMMATRICES "[posidx + 2];\n"
+              "int normidx = posidx & 31;\n"
+              "float3 N0 = " I_NORMALMATRICES "[normidx].xyz;\n"
+              "float3 N1 = " I_NORMALMATRICES "[normidx + 1].xyz;\n"
+              "float3 N2 = " I_NORMALMATRICES "[normidx + 2].xyz;\n");
   }
   else
   {
     // One shared matrix
     out.Write("float4 P0 = " I_POSNORMALMATRIX "[0];\n"
               "float4 P1 = " I_POSNORMALMATRIX "[1];\n"
-              "float4 P2 = " I_POSNORMALMATRIX "[2];\n");
-    if ((uid_data->components & VB_HAS_NORMAL) != 0)
-    {
-      out.Write("float3 N0 = " I_POSNORMALMATRIX "[3].xyz;\n"
-                "float3 N1 = " I_POSNORMALMATRIX "[4].xyz;\n"
-                "float3 N2 = " I_POSNORMALMATRIX "[5].xyz;\n");
-    }
+              "float4 P2 = " I_POSNORMALMATRIX "[2];\n"
+              "float3 N0 = " I_POSNORMALMATRIX "[3].xyz;\n"
+              "float3 N1 = " I_POSNORMALMATRIX "[4].xyz;\n"
+              "float3 N2 = " I_POSNORMALMATRIX "[5].xyz;\n");
   }
 
   out.Write("// Multiply the position vector by the position matrix\n"
             "float4 pos = float4(dot(P0, rawpos), dot(P1, rawpos), dot(P2, rawpos), 1.0);\n");
-  if ((uid_data->components & VB_HAS_NORMAL) != 0)
-  {
-    if ((uid_data->components & VB_HAS_TANGENT) == 0)
-      out.Write("float3 rawtangent = " I_CACHED_TANGENT ".xyz;\n");
-    if ((uid_data->components & VB_HAS_BINORMAL) == 0)
-      out.Write("float3 rawbinormal = " I_CACHED_BINORMAL ".xyz;\n");
+  if ((uid_data->components & VB_HAS_NORMAL) == 0)
+    out.Write("float3 rawnormal = " I_CACHED_NORMAL ".xyz;\n");
+  if ((uid_data->components & VB_HAS_TANGENT) == 0)
+    out.Write("float3 rawtangent = " I_CACHED_TANGENT ".xyz;\n");
+  if ((uid_data->components & VB_HAS_BINORMAL) == 0)
+    out.Write("float3 rawbinormal = " I_CACHED_BINORMAL ".xyz;\n");
 
-    // The scale of the transform matrix is used to control the size of the emboss map effect, by
-    // changing the scale of the transformed binormals (which only get used by emboss map texgens).
-    // By normalising the first transformed normal (which is used by lighting calculations and needs
-    // to be unit length), the same transform matrix can do double duty, scaling for emboss mapping,
-    // and not scaling for lighting.
-    out.Write("float3 _normal = normalize(float3(dot(N0, rawnormal), dot(N1, rawnormal), dot(N2, "
-              "rawnormal)));\n"
-              "float3 _tangent = float3(dot(N0, rawtangent), dot(N1, rawtangent), dot(N2, "
-              "rawtangent));\n"
-              "float3 _binormal = float3(dot(N0, rawbinormal), dot(N1, rawbinormal), dot(N2, "
-              "rawbinormal));\n");
-  }
-  else
-  {
-    out.Write("float3 _normal = float3(0.0, 0.0, 0.0);\n");
-    out.Write("float3 _binormal = float3(0.0, 0.0, 0.0);\n");
-    out.Write("float3 _tangent = float3(0.0, 0.0, 0.0);\n");
-  }
+  // The scale of the transform matrix is used to control the size of the emboss map effect, by
+  // changing the scale of the transformed binormals (which only get used by emboss map texgens).
+  // By normalising the first transformed normal (which is used by lighting calculations and needs
+  // to be unit length), the same transform matrix can do double duty, scaling for emboss mapping,
+  // and not scaling for lighting.
+  out.Write("float3 _normal = normalize(float3(dot(N0, rawnormal), dot(N1, rawnormal), dot(N2, "
+            "rawnormal)));\n"
+            "float3 _tangent = float3(dot(N0, rawtangent), dot(N1, rawtangent), dot(N2, "
+            "rawtangent));\n"
+            "float3 _binormal = float3(dot(N0, rawbinormal), dot(N1, rawbinormal), dot(N2, "
+            "rawbinormal));\n");
 
   out.Write("o.pos = float4(dot(" I_PROJECTION "[0], pos), dot(" I_PROJECTION
             "[1], pos), dot(" I_PROJECTION "[2], pos), dot(" I_PROJECTION "[3], pos));\n");
@@ -524,9 +511,9 @@ ShaderCode GenerateVertexShaderCode(APIType api_type, const ShaderHostConfig& ho
     out.Write("// Line expansion\n"
               "uint other_id = vertex_id;\n"
               "if (is_bottom) {{\n"
-              "  other_id -= 1;\n"
+              "  other_id -= 1u;\n"
               "}} else {{\n"
-              "  other_id += 1;\n"
+              "  other_id += 1u;\n"
               "}}\n"
               "InputData other = input_buffer[other_id];\n");
     if (uid_data->position_has_3_elems)

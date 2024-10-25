@@ -3,6 +3,7 @@
 
 #include "UpdaterCommon/UpdaterCommon.h"
 
+#include <algorithm>
 #include <array>
 #include <memory>
 #include <optional>
@@ -150,7 +151,7 @@ Manifest::Hash ComputeHash(const std::string& contents)
                      false);
 
   Manifest::Hash out;
-  std::copy(full.begin(), full.begin() + 16, out.begin());
+  std::copy_n(full.begin(), 16, out.begin());
   return out;
 }
 
@@ -279,7 +280,7 @@ TodoList ComputeActionsToDo(Manifest this_manifest, Manifest next_manifest)
   // Delete if present in this manifest but not in next manifest.
   for (const auto& entry : this_manifest.entries)
   {
-    if (next_manifest.entries.find(entry.first) == next_manifest.entries.end())
+    if (!next_manifest.entries.contains(entry.first))
     {
       TodoList::DeleteOp del;
       del.filename = entry.first;

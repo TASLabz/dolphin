@@ -16,6 +16,7 @@ import org.dolphinemu.dolphinemu.databinding.FragmentEmulationBinding
 import org.dolphinemu.dolphinemu.features.settings.model.BooleanSetting
 import org.dolphinemu.dolphinemu.features.settings.model.Settings
 import org.dolphinemu.dolphinemu.overlay.InputOverlay
+import org.dolphinemu.dolphinemu.utils.AfterDirectoryInitializationRunner
 import org.dolphinemu.dolphinemu.utils.Log
 import java.io.File
 
@@ -100,7 +101,9 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
         if (NativeLibrary.IsGameMetadataValid())
             inputOverlay?.refreshControls()
 
-        run(emulationActivity!!.isActivityRecreated)
+        AfterDirectoryInitializationRunner().runWithLifecycle(this) {
+            run(emulationActivity!!.isActivityRecreated)
+        }
     }
 
     override fun onPause() {
@@ -177,11 +180,11 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
 
     private fun run(isActivityRecreated: Boolean) {
         if (isActivityRecreated) {
-            if (NativeLibrary.IsRunning()) {
+            if (NativeLibrary.IsUninitialized()) {
+                loadPreviousTemporaryState = true
+            } else {
                 loadPreviousTemporaryState = false
                 deleteFile(temporaryStateFilePath)
-            } else {
-                loadPreviousTemporaryState = true
             }
         } else {
             Log.debug("[EmulationFragment] activity resumed or fresh start")
@@ -200,7 +203,7 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
 
     private fun runWithValidSurface() {
         runWhenSurfaceIsValid = false
-        if (!NativeLibrary.IsRunning()) {
+        if (NativeLibrary.IsUninitialized()) {
             NativeLibrary.SetIsBooting()
             val emulationThread = Thread({
                 if (loadPreviousTemporaryState) {

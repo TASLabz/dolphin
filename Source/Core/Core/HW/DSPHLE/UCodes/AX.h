@@ -12,14 +12,21 @@
 #pragma once
 
 #include <array>
+#include <memory>
 #include <optional>
 
 #include "Common/BitUtils.h"
 #include "Common/CommonTypes.h"
 #include "Common/Swap.h"
+#include "Core/HW/DSPHLE/DSPHLE.h"
 #include "Core/HW/DSPHLE/UCodes/UCodes.h"
 #include "Core/HW/Memmap.h"
 #include "Core/System.h"
+
+namespace DSP
+{
+class Accelerator;
+}
 
 namespace DSP::HLE
 {
@@ -67,6 +74,7 @@ class AXUCode /* not final: subclassed by AXWiiUCode */ : public UCodeInterface
 {
 public:
   AXUCode(DSPHLE* dsphle, u32 crc);
+  ~AXUCode() override;
 
   void Initialize() override;
   void HandleMail(u32 mail) override;
@@ -100,6 +108,13 @@ protected:
 
   u16 m_compressor_pos = 0;
 
+  std::unique_ptr<Accelerator> m_accelerator;
+
+  // Constructs without any GC-specific state, so it can be used by the deriving AXWii.
+  AXUCode(DSPHLE* dsphle, u32 crc, bool dummy);
+
+  void InitializeShared();
+
   bool LoadResamplingCoefficients(bool require_same_checksum, u32 desired_checksum);
 
   // Copy a command list from memory to our temp buffer
@@ -128,7 +143,7 @@ protected:
       pb_mem[update_off] = update_val;
     }
 
-    Common::BitCastFromArray<u16>(pb_mem, pb);
+    pb = std::bit_cast<PBType>(pb_mem);
   }
 
   virtual void HandleCommandList();
@@ -143,7 +158,7 @@ protected:
   template <int Millis, size_t BufCount>
   void InitMixingBuffers(u32 init_addr, const std::array<BufferDesc, BufCount>& buffers)
   {
-    auto& system = Core::System::GetInstance();
+    auto& system = m_dsphle->GetSystem();
     auto& memory = system.GetMemory();
     std::array<u16, 3 * BufCount> init_array;
     memory.CopyFromEmuSwapped(init_array.data(), init_addr, sizeof(init_array));

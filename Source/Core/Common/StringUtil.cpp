@@ -22,6 +22,7 @@
 #include <vector>
 
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 
 #include "Common/CommonFuncs.h"
 #include "Common/CommonPaths.h"
@@ -35,9 +36,6 @@
 constexpr u32 CODEPAGE_SHIFT_JIS = 932;
 constexpr u32 CODEPAGE_WINDOWS_1252 = 1252;
 #else
-#if defined(__NetBSD__)
-#define LIBICONV_PLUG
-#endif
 #include <errno.h>
 #include <iconv.h>
 #include <locale.h>
@@ -370,21 +368,6 @@ std::vector<std::string> SplitString(const std::string& str, const char delim)
   return output;
 }
 
-std::string JoinStrings(const std::vector<std::string>& strings, const std::string& delimiter)
-{
-  // Check if we can return early, just for speed
-  if (strings.empty())
-    return "";
-
-  std::ostringstream res;
-  std::copy(strings.begin(), strings.end(),
-            std::ostream_iterator<std::string>(res, delimiter.c_str()));
-
-  // Drop the trailing delimiter.
-  std::string joined = res.str();
-  return joined.substr(0, joined.length() - delimiter.length());
-}
-
 std::string TabsToSpaces(int tab_size, std::string str)
 {
   const std::string spaces(tab_size, ' ');
@@ -426,7 +409,7 @@ size_t StringUTF8CodePointCount(std::string_view str)
 
 #ifdef _WIN32
 
-std::wstring CPToUTF16(u32 code_page, std::string_view input)
+static std::wstring CPToUTF16(u32 code_page, std::string_view input)
 {
   auto const size =
       MultiByteToWideChar(code_page, 0, input.data(), static_cast<int>(input.size()), nullptr, 0);
@@ -444,7 +427,7 @@ std::wstring CPToUTF16(u32 code_page, std::string_view input)
   return output;
 }
 
-std::string UTF16ToCP(u32 code_page, std::wstring_view input)
+static std::string UTF16ToCP(u32 code_page, std::wstring_view input)
 {
   if (input.empty())
     return {};
@@ -528,13 +511,8 @@ std::string CodeTo(const char* tocode, const char* fromcode, std::basic_string_v
     while (src_bytes != 0)
     {
       size_t const iconv_result =
-#if defined(__NetBSD__)
-          iconv(conv_desc, reinterpret_cast<const char**>(&src_buffer), &src_bytes, &dst_buffer,
-                &dst_bytes);
-#else
           iconv(conv_desc, const_cast<char**>(reinterpret_cast<const char**>(&src_buffer)),
                 &src_bytes, &dst_buffer, &dst_bytes);
-#endif
       if ((size_t)-1 == iconv_result)
       {
         if (EILSEQ == errno || EINVAL == errno)
@@ -688,10 +666,14 @@ void ToUpper(std::string* str)
 
 bool CaseInsensitiveEquals(std::string_view a, std::string_view b)
 {
-  if (a.size() != b.size())
-    return false;
-  return std::equal(a.begin(), a.end(), b.begin(),
-                    [](char ca, char cb) { return Common::ToLower(ca) == Common::ToLower(cb); });
+  return std::ranges::equal(
+      a, b, [](char ca, char cb) { return Common::ToLower(ca) == Common::ToLower(cb); });
+}
+
+bool CaseInsensitiveLess::operator()(std::string_view a, std::string_view b) const
+{
+  return std::ranges::lexicographical_compare(
+      a, b, [](char ca, char cb) { return Common::ToLower(ca) < Common::ToLower(cb); });
 }
 
 std::string BytesToHexString(std::span<const u8> bytes)
